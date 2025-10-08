@@ -17,9 +17,8 @@ system_prompt = "You are a helpful AI assistant that echoes messages back to use
 max_tool_calls = 15
 max_iterations = 8
 
-[[tools]]
-name = "echo"
-implementation = "builtin"
+[tools]
+echo = "builtin"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # V2 ROUTING CONFIGURATION (Optional)
