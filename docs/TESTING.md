@@ -639,7 +639,7 @@ grep -i "error\|fail\|panic" agent.log
 
 ```bash
 # Clone repository
-git clone https://github.com/example/2389-agent-rust.git
+git clone https://github.com/2389-research/2389-agent-rust.git
 cd 2389-agent-rust
 
 # Install Rust (if needed)
