@@ -178,9 +178,9 @@ impl NineStepExecutor {
     }
 }
 
-// TaskProcessor implementation is temporarily disabled while refactoring
-// The pipeline orchestrator now calls AgentProcessor directly
-// TODO: Consider whether TaskProcessor is needed or if AgentProcessor is sufficient
+// Note: AgentProcessor handles all task processing for the v1.0 protocol.
+// TaskProcessor was considered during refactoring but determined unnecessary.
+// The pipeline orchestrator calls AgentProcessor directly for clean separation of concerns.
 
 #[cfg(test)]
 mod tests {
