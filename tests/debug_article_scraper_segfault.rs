@@ -43,11 +43,11 @@ async fn test_multiple_extractions() {
     let html = "<html><body><p>Test</p></body></html>";
 
     for i in 0..3 {
-        println!("Iteration {}", i);
+        println!("Iteration {i}");
         let result = Readability::extract(html, None).await;
         assert!(result.is_ok() || result.is_err());
         drop(result);
-        println!("Iteration {} dropped", i);
+        println!("Iteration {i} dropped");
     }
 
     println!("END: test_multiple_extractions");
@@ -76,9 +76,7 @@ fn test_no_tokio() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let html = "<html><body><p>Test</p></body></html>";
 
-    let result = rt.block_on(async {
-        Readability::extract(html, None).await
-    });
+    let result = rt.block_on(async { Readability::extract(html, None).await });
 
     println!("Blocking extraction result: {:?}", result.is_ok());
     assert!(result.is_ok() || result.is_err());
@@ -97,19 +95,17 @@ fn test_sequential_runtimes() {
 
     // Create and destroy multiple runtimes
     for i in 0..3 {
-        println!("Runtime {}", i);
+        println!("Runtime {i}");
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let result = rt.block_on(async {
-            Readability::extract(html, None).await
-        });
+        let result = rt.block_on(async { Readability::extract(html, None).await });
 
         assert!(result.is_ok() || result.is_err());
 
         drop(result);
-        println!("Result {} dropped", i);
+        println!("Result {i} dropped");
         drop(rt);
-        println!("Runtime {} dropped", i);
+        println!("Runtime {i} dropped");
     }
 
     println!("END: test_sequential_runtimes");
