@@ -74,11 +74,13 @@ Distribution by file (top 20):
 ### For v0.2+
 
 1. **Enable Clippy Lint**
+
    ```toml
    [lints.clippy]
    unwrap_used = "warn"
    expect_used = "warn"
    ```
+
    This will catch new unwraps in CI.
 
 2. **Systematic Unwrap Audit**

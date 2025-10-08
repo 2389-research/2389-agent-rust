@@ -72,15 +72,15 @@ jobs:
     - name: Generate test summary
       if: always()
       run: |
-        echo "## Test Results (${{ matrix.os }} / ${{ matrix.rust }})" >> $GITHUB_STEP_SUMMARY
-        echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Note**: Skipping article_scraper tests due to known segfault issue (RUSTSEC-2024-0436)" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results (${{ matrix.os }} / ${{ matrix.rust }})" >> ""$GITHUB_STEP_SUMMARY""
+        echo "✅ All tests passed" >> ""$GITHUB_STEP_SUMMARY""
+        echo "" >> ""$GITHUB_STEP_SUMMARY""
+        echo "**Note**: Skipping article_scraper tests due to known segfault issue (RUSTSEC-2024-0436)" >> ""$GITHUB_STEP_SUMMARY""
 
     - name: Show sccache stats
       run: |
-        echo "## Compilation Cache Stats" >> $GITHUB_STEP_SUMMARY
-        sccache --show-stats >> $GITHUB_STEP_SUMMARY
+        echo "## Compilation Cache Stats" >> ""$GITHUB_STEP_SUMMARY""
+        sccache --show-stats >> ""$GITHUB_STEP_SUMMARY""
 
   coverage:
     name: Code Coverage
@@ -125,9 +125,9 @@ jobs:
 
     - name: Generate coverage summary
       run: |
-        echo "## Code Coverage Report" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        cargo llvm-cov report --summary-only | tee -a $GITHUB_STEP_SUMMARY
+        echo "## Code Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        cargo llvm-cov report --summary-only | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Upload coverage to artifacts
       uses: actions/upload-artifact@v4
@@ -176,16 +176,16 @@ jobs:
         CLIPPY_EXIT_CODE=${PIPESTATUS[0]}
 
         # Generate summary
-        echo "## Clippy Analysis" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Clippy Analysis" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         if [ $CLIPPY_EXIT_CODE -eq 0 ]; then
-          echo "✅ No clippy warnings or errors" >> $GITHUB_STEP_SUMMARY
+          echo "✅ No clippy warnings or errors" >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "❌ Clippy found issues:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          tail -20 clippy-output.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Clippy found issues:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          tail -20 clippy-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
         fi
 
         exit $CLIPPY_EXIT_CODE
@@ -206,8 +206,8 @@ jobs:
     - name: Check formatting
       run: |
         cargo fmt --all -- --check
-        echo "## Formatting Check" >> $GITHUB_STEP_SUMMARY
-        echo "✅ All code is properly formatted" >> $GITHUB_STEP_SUMMARY
+        echo "## Formatting Check" >> "$GITHUB_STEP_SUMMARY"
+        echo "✅ All code is properly formatted" >> "$GITHUB_STEP_SUMMARY"
 
   security:
     name: Security Audit
@@ -238,17 +238,17 @@ jobs:
       run: |
         cargo audit --json > audit-results.json || true
 
-        echo "## Security Audit" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Security Audit" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         # Parse and display results
         if cargo audit 2>&1 | grep -q "Success"; then
-          echo "✅ No known security vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "✅ No known security vulnerabilities" >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "⚠️ Security audit results:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cargo audit >> $GITHUB_STEP_SUMMARY || true
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Security audit results:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          cargo audit >> "$GITHUB_STEP_SUMMARY" || true
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
         fi
 
     - name: Upload audit results
@@ -288,15 +288,15 @@ jobs:
         cargo doc --no-deps --all-features 2>&1 | tee doc-output.txt
         DOC_EXIT_CODE=${PIPESTATUS[0]}
 
-        echo "## Documentation Build" >> $GITHUB_STEP_SUMMARY
+        echo "## Documentation Build" >> "$GITHUB_STEP_SUMMARY"
 
         if [ $DOC_EXIT_CODE -eq 0 ]; then
-          echo "✅ Documentation built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Documentation built successfully" >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "❌ Documentation build failed:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat doc-output.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Documentation build failed:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          cat doc-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
         fi
 
         exit $DOC_EXIT_CODE
@@ -311,8 +311,8 @@ jobs:
     steps:
     - name: Check all jobs
       run: |
-        echo "## Overall CI Status" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Overall CI Status" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         # Check if any job failed
         if [[ "${{ needs.test.result }}" != "success" ]] || \
@@ -321,8 +321,8 @@ jobs:
            [[ "${{ needs.format.result }}" != "success" ]] || \
            [[ "${{ needs.security.result }}" != "success" ]] || \
            [[ "${{ needs.docs.result }}" != "success" ]]; then
-          echo "❌ One or more CI checks failed" >> $GITHUB_STEP_SUMMARY
+          echo "❌ One or more CI checks failed" >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi
 
-        echo "✅ All CI checks passed successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "✅ All CI checks passed successfully!" >> "$GITHUB_STEP_SUMMARY"
