@@ -28,7 +28,7 @@ pub trait Tool: Send + Sync {
     /// Parameters MUST be validated against schema before execution
     async fn execute(&self, parameters: &Value) -> Result<Value, ToolError>;
 
-    /// RFC Section 8.4: shutdown() Method [OPTIONAL]
+    /// RFC Section 8.4: shutdown() Method \[OPTIONAL\]
     /// Performs cleanup (close connections, release resources)
     async fn shutdown(&mut self) -> Result<(), ToolError> {
         Ok(())

@@ -48,8 +48,6 @@ regex = "1.10"
 article_scraper = "2"
 # Phase 4 dependencies - CLI and production features
 clap = { version = "4.0", features = ["derive", "env"] }
-signal-hook = "0.3"
-signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 url = "2.5"
 warp = "0.3"
 
@@ -58,7 +56,6 @@ warp = "0.3"
 proptest = "1.0"
 tempfile = "3.0"
 testcontainers = "0.15"
-tokio-test = "0.4"
 wiremock = "0.6"
 futures = "0.3"
 # criterion = "0.5"       # Add for benchmarking

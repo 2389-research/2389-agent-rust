@@ -18,7 +18,7 @@
 //! use agent2389::transport::mqtt::MqttClient;
 //! use agent2389::config::MqttSection;
 //!
-//! # tokio_test::block_on(async {
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = MqttSection {
 //!     broker_url: "mqtt://localhost:1883".to_string(),
 //!     username_env: None,
@@ -29,8 +29,8 @@
 //! let mut client = MqttClient::new("my-agent", config).await?;
 //! client.connect().await?;
 //! client.subscribe_to_tasks().await?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! # });
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod client;
