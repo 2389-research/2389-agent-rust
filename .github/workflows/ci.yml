@@ -40,7 +40,27 @@ jobs:
         key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run tests
-      run: cargo test --all-features --verbose -- --skip test_article_extraction
+      run: |
+        echo "=== Running full test suite with verbose output ==="
+        echo "Environment: $(uname -a)"
+        echo "Rust: $(rustc --version)"
+        echo "libxml2: $(pkg-config --modversion libxml-2.0 || echo 'not found via pkg-config')"
+        echo ""
+
+        # Run tests with full backtrace and verbose output
+        RUST_BACKTRACE=full cargo test --all-features --verbose 2>&1 | tee test-output.log
+        EXIT_CODE=${PIPESTATUS[0]}
+
+        echo ""
+        echo "=== Test suite exit code: $EXIT_CODE ==="
+
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "=== Tests failed or crashed ==="
+          echo "Last 50 lines of output:"
+          tail -50 test-output.log
+        fi
+
+        exit $EXIT_CODE
 
   clippy:
     name: Clippy
