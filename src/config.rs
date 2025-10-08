@@ -166,6 +166,30 @@ fn default_retry_attempts() -> usize {
     3
 }
 
+impl RoutingConfig {
+    /// Validate routing configuration consistency
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        match self.strategy {
+            RoutingStrategy::Llm => {
+                if self.llm.is_none() {
+                    return Err(ConfigError::InvalidConfig(
+                        "LLM routing strategy requires [routing.llm] configuration".to_string(),
+                    ));
+                }
+            }
+            RoutingStrategy::Gatekeeper => {
+                if self.gatekeeper.is_none() {
+                    return Err(ConfigError::InvalidConfig(
+                        "Gatekeeper routing strategy requires [routing.gatekeeper] configuration"
+                            .to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Configuration loading errors
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -177,6 +201,8 @@ pub enum ConfigError {
     EnvVarNotFound(String),
     #[error("Invalid agent ID format: {0}")]
     InvalidAgentId(String),
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
 }
 
 impl AgentConfig {
@@ -187,6 +213,11 @@ impl AgentConfig {
 
         // Validate agent ID format per RFC
         validate_agent_id(&config.agent.id)?;
+
+        // Validate routing configuration if present
+        if let Some(ref routing) = config.routing {
+            routing.validate()?;
+        }
 
         // Resolve environment variables
         config.resolve_env_vars()?;
@@ -455,5 +486,67 @@ model = "gpt-4o-mini"
 
         let llm_config = routing.llm.expect("LLM config should be present");
         assert_eq!(llm_config.temperature, 0.1); // default
+    }
+
+    #[test]
+    fn test_routing_config_missing_llm_when_strategy_llm() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "llm"
+# Missing [routing.llm] section!
+"#;
+
+        let result: Result<AgentConfig, _> = toml::from_str(toml_content);
+        // Should parse fine - validation happens separately
+        assert!(result.is_ok());
+
+        // But routing config should be invalid
+        let config = result.unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert!(routing.llm.is_none(), "LLM config should be None");
+    }
+
+    #[test]
+    fn test_routing_config_missing_gatekeeper_when_strategy_gatekeeper() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "gatekeeper"
+# Missing [routing.gatekeeper] section!
+"#;
+
+        let result: Result<AgentConfig, _> = toml::from_str(toml_content);
+        // Should parse fine - validation happens separately
+        assert!(result.is_ok());
+
+        // But routing config should be invalid
+        let config = result.unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert!(routing.gatekeeper.is_none(), "Gatekeeper config should be None");
     }
 }
