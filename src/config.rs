@@ -383,4 +383,77 @@ temperature = 0.1
         assert_eq!(llm_config.model, "gpt-4o-mini");
         assert_eq!(llm_config.temperature, 0.1);
     }
+
+    #[test]
+    fn test_routing_config_gatekeeper_strategy() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "gatekeeper"
+max_iterations = 15
+
+[routing.gatekeeper]
+url = "http://localhost:8080/route"
+timeout_ms = 3000
+retry_attempts = 5
+"#;
+
+        let config: AgentConfig = toml::from_str(toml_content).unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert_eq!(routing.strategy, RoutingStrategy::Gatekeeper);
+        assert_eq!(routing.max_iterations, 15);
+
+        let gk_config = routing
+            .gatekeeper
+            .expect("Gatekeeper routing config should be present");
+        assert_eq!(gk_config.url, "http://localhost:8080/route");
+        assert_eq!(gk_config.timeout_ms, 3000);
+        assert_eq!(gk_config.retry_attempts, 5);
+    }
+
+    #[test]
+    fn test_routing_config_defaults() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "llm"
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+"#;
+
+        let config: AgentConfig = toml::from_str(toml_content).unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+
+        // Test default values
+        assert_eq!(routing.max_iterations, 10); // default
+
+        let llm_config = routing.llm.expect("LLM config should be present");
+        assert_eq!(llm_config.temperature, 0.1); // default
+    }
 }
