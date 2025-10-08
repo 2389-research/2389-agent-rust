@@ -4,7 +4,7 @@
 //! and provides the JSON schema for LLM structured outputs.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// Agent routing decision from LLM response (v2 workflow)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,18 +152,14 @@ mod tests {
         assert_eq!(schema["title"], "RouteDecision");
         assert_eq!(schema["type"], "object");
         assert_eq!(schema["properties"]["schema_version"]["const"], "1.0");
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .contains(&json!("result"))
-        );
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .contains(&json!("workflow_complete"))
-        );
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("result")));
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("workflow_complete")));
     }
 
     #[test]

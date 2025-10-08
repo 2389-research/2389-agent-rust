@@ -1347,12 +1347,10 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Retained messages are ignored")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Retained messages are ignored"));
     }
 
     #[tokio::test]
@@ -1388,12 +1386,10 @@ mod tests {
             )
             .await;
         assert!(result2.is_err());
-        assert!(
-            result2
-                .unwrap_err()
-                .to_string()
-                .contains("already processed")
-        );
+        assert!(result2
+            .unwrap_err()
+            .to_string()
+            .contains("already processed"));
     }
 
     #[test]
@@ -1519,16 +1515,20 @@ mod tests {
         let max_iterations = 5;
 
         // Iteration 5 should succeed
-        assert!(
-            NineStepProcessor::<MockTransport>::check_iteration_limit(5, max_iterations, &task_id)
-                .is_ok()
-        );
+        assert!(NineStepProcessor::<MockTransport>::check_iteration_limit(
+            5,
+            max_iterations,
+            &task_id
+        )
+        .is_ok());
 
         // Iteration 6 should fail
-        assert!(
-            NineStepProcessor::<MockTransport>::check_iteration_limit(6, max_iterations, &task_id)
-                .is_err()
-        );
+        assert!(NineStepProcessor::<MockTransport>::check_iteration_limit(
+            6,
+            max_iterations,
+            &task_id
+        )
+        .is_err());
     }
 
     #[test]
@@ -1919,12 +1919,10 @@ mod rfc_step_tests {
         assert!(!result.success);
         assert_eq!(result.step, 2);
         assert!(result.error_message.is_some());
-        assert!(
-            result
-                .error_message
-                .unwrap()
-                .contains("Retained messages are ignored")
-        );
+        assert!(result
+            .error_message
+            .unwrap()
+            .contains("Retained messages are ignored"));
     }
 
     #[test]

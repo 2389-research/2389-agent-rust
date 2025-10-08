@@ -9,8 +9,8 @@ pub mod metrics;
 
 // Re-export for convenience
 pub use health::HealthServer;
-pub use logging::{LogFormat, init_default_logging, init_logging};
-pub use metrics::{MetricsCollector, MetricsSnapshot, metrics};
+pub use logging::{init_default_logging, init_logging, LogFormat};
+pub use metrics::{metrics, MetricsCollector, MetricsSnapshot};
 
 // Span macros for structured logging
 pub use logging::{lifecycle_span, mqtt_span, task_span, tool_span};

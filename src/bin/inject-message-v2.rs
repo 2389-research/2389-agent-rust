@@ -20,7 +20,7 @@ use clap::Parser;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 #[derive(Parser)]

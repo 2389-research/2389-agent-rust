@@ -12,12 +12,12 @@ use crate::protocol::messages::{
     AgentStatus, ErrorMessage, ResponseMessage, TaskEnvelope, TaskEnvelopeWrapper,
 };
 use crate::tools::ToolError;
-use crate::transport::{Transport, mqtt::ConnectionState};
+use crate::transport::{mqtt::ConnectionState, Transport};
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc, Mutex};
 
 pub type PublishedMessage = (String, Vec<u8>);
 

@@ -4,7 +4,7 @@
 //! async coordination, and integration with the rumqttc client.
 
 use super::connection::{
-    ConnectionState, MqttError, ReconnectConfig, TopicBuilder, configure_mqtt_options,
+    configure_mqtt_options, ConnectionState, MqttError, ReconnectConfig, TopicBuilder,
 };
 use super::health_monitor::{ConnectionEvent, HealthMetrics, HealthMonitor, ReconnectionDecision};
 use super::message_handler::{EventRoute, MessageForwarder, MessageHandler};
@@ -16,10 +16,10 @@ use crate::protocol::{
 use crate::transport::Transport;
 use async_trait::async_trait;
 use rumqttc::v5::mqttbytes::v5::PublishProperties;
-use rumqttc::v5::{AsyncClient, EventLoop, mqttbytes::QoS};
+use rumqttc::v5::{mqttbytes::QoS, AsyncClient, EventLoop};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, mpsc, watch};
+use tokio::sync::{mpsc, watch, Mutex};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 

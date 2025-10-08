@@ -33,7 +33,7 @@
 
 use std::env;
 use tracing::Level;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Log output format options
 #[derive(Debug, Clone, Copy)]

@@ -11,8 +11,8 @@ use agent2389::config::MqttSection;
 use agent2389::protocol::{
     AgentStatus, AgentStatusType, ErrorCode, ErrorDetails, ErrorMessage, ResponseMessage,
 };
-use agent2389::transport::Transport;
 use agent2389::transport::mqtt::{MqttClient, ReconnectConfig};
+use agent2389::transport::Transport;
 use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;

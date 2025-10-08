@@ -6,8 +6,8 @@
 //! - Never exit, retry until killed or broker becomes available
 
 use agent2389::config::MqttSection;
-use agent2389::transport::Transport;
 use agent2389::transport::mqtt::MqttClient;
+use agent2389::transport::Transport;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 

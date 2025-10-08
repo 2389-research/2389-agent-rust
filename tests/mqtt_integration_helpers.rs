@@ -5,7 +5,7 @@
 
 use agent2389::config::MqttSection;
 use std::time::Duration;
-use testcontainers::{Container, Image, clients::Cli};
+use testcontainers::{clients::Cli, Container, Image};
 use tokio::time::sleep;
 
 /// Mosquitto MQTT broker image for testcontainers

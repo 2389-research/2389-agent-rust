@@ -6,7 +6,7 @@
 #[cfg(test)]
 use crate::protocol::TaskEnvelope;
 use crate::protocol::{AgentStatus, ErrorMessage, ResponseMessage, TaskEnvelopeWrapper};
-use rumqttc::v5::{Event, mqttbytes::QoS};
+use rumqttc::v5::{mqttbytes::QoS, Event};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 

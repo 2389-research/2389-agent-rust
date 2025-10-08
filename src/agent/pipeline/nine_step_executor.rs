@@ -299,12 +299,10 @@ mod tests {
         let error = NineStepExecutor::create_pipeline_depth_error(task_id, 10, 5);
 
         assert_eq!(error.task_id, task_id);
-        assert!(
-            error
-                .error
-                .message
-                .contains("Pipeline depth 10 exceeds maximum 5")
-        );
+        assert!(error
+            .error
+            .message
+            .contains("Pipeline depth 10 exceeds maximum 5"));
     }
 
     #[test]

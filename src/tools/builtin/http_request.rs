@@ -6,7 +6,7 @@
 use crate::tools::{Tool, ToolDescription, ToolError};
 use article_scraper::Readability;
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use url::Url;
 
 /// HTTP request tool - builtin implementation
@@ -47,9 +47,8 @@ impl HttpRequestTool {
         let result = tokio::task::spawn_blocking(move || {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 // Run the extraction in a blocking context since we need catch_unwind
-                tokio::runtime::Handle::current().block_on(async {
-                    Readability::extract(&html_owned, parsed_url.clone()).await
-                })
+                tokio::runtime::Handle::current()
+                    .block_on(async { Readability::extract(&html_owned, parsed_url.clone()).await })
             }))
         })
         .await;
@@ -57,7 +56,10 @@ impl HttpRequestTool {
         match result {
             Ok(Ok(Ok(article_text))) => Ok(article_text),
             Ok(Ok(Err(e))) => {
-                tracing::debug!("Article extraction failed: {}, falling back to simple extraction", e);
+                tracing::debug!(
+                    "Article extraction failed: {}, falling back to simple extraction",
+                    e
+                );
                 Ok(self.simple_html_to_text(html))
             }
             Ok(Err(_panic)) => {
