@@ -224,3 +224,40 @@ max_iterations = 20
 [tools]
 web_search = "builtin"
 http_request = "builtin"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V2 ROUTING CONFIGURATION (Optional)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Enable dynamic multi-agent routing. Researcher agents typically participate in
+# workflows where they gather information and route to writers, editors, or other
+# specialized agents based on task requirements.
+
+# ───────────────────────────────────────────────────────────────────────────────
+# LLM-Based Routing (Recommended for research workflows)
+# ───────────────────────────────────────────────────────────────────────────────
+# The researcher can intelligently decide whether to:
+# - Route to writer-agent after gathering comprehensive information
+# - Route to editor-agent for fact-checking and verification
+# - Complete the task if no further processing needed
+#
+# [routing]
+# strategy = "llm"
+# max_iterations = 10
+#
+# [routing.llm]
+# provider = "openai"
+# model = "gpt-4o-mini"
+# temperature = 0.1
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Gatekeeper Routing (Enterprise deployments)
+# ───────────────────────────────────────────────────────────────────────────────
+# [routing]
+# strategy = "gatekeeper"
+# max_iterations = 15
+#
+# [routing.gatekeeper]
+# url = "https://gatekeeper.2389.dev/route"
+# timeout_ms = 5000
+# retry_attempts = 3
