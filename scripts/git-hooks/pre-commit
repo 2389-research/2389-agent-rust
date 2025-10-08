@@ -1,0 +1,56 @@
+#!/bin/bash
+# Pre-commit hook for Rust projects
+# Runs cargo fmt and cargo clippy on staged files
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Get list of staged Rust files
+STAGED_RS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
+
+if [ -z "$STAGED_RS_FILES" ]; then
+    echo "✅ No Rust files staged, skipping checks"
+    exit 0
+fi
+
+echo "📝 Staged Rust files:"
+echo "$STAGED_RS_FILES" | sed 's/^/  - /'
+echo
+
+# 1. Run cargo fmt --check
+echo "🎨 Checking code formatting with cargo fmt..."
+if ! cargo fmt --all -- --check; then
+    echo
+    echo "❌ Code formatting check failed!"
+    echo "💡 Run 'cargo fmt' to fix formatting issues"
+    exit 1
+fi
+echo "✅ Formatting check passed"
+echo
+
+# 2. Run cargo clippy
+echo "📎 Running clippy checks..."
+if ! cargo clippy --all-targets -- -D warnings; then
+    echo
+    echo "❌ Clippy found issues!"
+    echo "💡 Run 'cargo clippy --fix --allow-dirty' to fix automatically"
+    echo "💡 Or run 'cargo clippy --all-targets -- -D warnings' to see all issues"
+    exit 1
+fi
+echo "✅ Clippy checks passed"
+echo
+
+# 3. Quick compile check on staged files
+echo "🔨 Quick compile check..."
+if ! cargo check --all-targets; then
+    echo
+    echo "❌ Compile check failed!"
+    echo "💡 Fix compilation errors before committing"
+    exit 1
+fi
+echo "✅ Compile check passed"
+echo
+
+echo "✨ All pre-commit checks passed!"
+exit 0
