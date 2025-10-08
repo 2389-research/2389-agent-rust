@@ -1,0 +1,22 @@
+[agent]
+id = "echo-agent"
+description = "Simple echo agent for testing - repeats messages back"
+
+[mqtt]
+broker_url = "mqtts://mqtt.2389.dev:8883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+system_prompt = "You are a helpful AI assistant that echoes messages back to users using the echo tool."
+
+[budget]
+max_tool_calls = 15
+max_iterations = 8
+
+[[tools]]
+name = "echo"
+implementation = "builtin"

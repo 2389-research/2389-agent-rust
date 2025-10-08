@@ -1,0 +1,73 @@
+# 2389 Agent Protocol Configuration Example
+#
+# This is an example configuration file for the 2389 Agent Protocol implementation.
+# Copy this file to `agent.toml` and modify the values according to your setup.
+
+# Agent identification and basic settings
+agent_id = "my-agent"
+default_model = "gpt-4"
+
+# Maximum pipeline depth for recursive task processing
+max_pipeline_depth = 16
+
+# Task timeout in seconds (5 minutes)
+task_timeout = 300
+
+# Maximum output size in bytes (1MB)
+max_output_size = 1048576
+
+# MQTT broker configuration
+[mqtt]
+# MQTT broker URL (supports mqtt:// and mqtts:// schemes)
+broker_url = "mqtt://localhost:1883"
+
+# Optional authentication
+# username = "agent_user"
+# password = "${MQTT_PASSWORD}"
+
+# QoS level for messaging (protocol requires QoS 1)
+qos = 1
+
+# Keep alive interval in seconds
+keep_alive = 60
+
+# LLM provider API keys (set at least one)
+# Use environment variables for security
+openai_api_key = "${OPENAI_API_KEY}"
+# anthropic_api_key = "${ANTHROPIC_API_KEY}"
+
+# Tool definitions
+# Each tool must have a name, command, schema, and timeout
+
+[[tools]]
+name = "echo"
+command = "echo"
+timeout = 10
+[tools.schema]
+type = "object"
+properties = { message = { type = "string" } }
+required = ["message"]
+
+[[tools]]
+name = "curl"
+command = "curl"
+timeout = 30
+[tools.schema]
+type = "object"
+properties = { 
+    url = { type = "string", format = "uri" },
+    method = { type = "string", enum = ["GET", "POST", "PUT", "DELETE"] }
+}
+required = ["url"]
+
+[[tools]]
+name = "python_script"
+command = "python3"
+timeout = 60
+[tools.schema]
+type = "object"
+properties = {
+    script = { type = "string" },
+    args = { type = "array", items = { type = "string" } }
+}
+required = ["script"]

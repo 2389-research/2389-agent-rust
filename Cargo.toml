@@ -1,0 +1,64 @@
+[[bin]]
+name = "agent2389"
+path = "src/main.rs"
+
+[[bin]]
+name = "inject-message"
+path = "src/bin/inject-message.rs"
+
+[[bin]]
+name = "inject-message-v2"
+path = "src/bin/inject-message-v2.rs"
+
+[package]
+name = "agent2389"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+description = "Production-ready implementation of the 2389 Agent Protocol in Rust"
+homepage = "https://github.com/2389-research/2389-agent-rust"
+repository = "https://github.com/2389-research/2389-agent-rust"
+keywords = ["agent", "mqtt", "llm", "ai", "protocol"]
+categories = ["network-programming", "asynchronous"]
+readme = "README.md"
+
+[dependencies]
+# Core runtime dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+toml = "0.8"
+thiserror = "1.0"
+
+# Phase 2 dependencies - MQTT transport and async runtime
+tokio = { version = "1.0", features = ["full"] }
+rumqttc = "0.24"
+bytes = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "ansi"] }
+once_cell = "1.19"
+# Phase 3 dependencies - Tool system and LLM integration
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+jsonschema = "0.25"
+schemars = "0.8"
+async-trait = "0.1"
+regex = "1.10"
+article_scraper = "2"
+# Phase 4 dependencies - CLI and production features
+clap = { version = "4.0", features = ["derive", "env"] }
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
+url = "2.5"
+warp = "0.3"
+
+[dev-dependencies]
+# Testing framework
+proptest = "1.0"
+tempfile = "3.0"
+testcontainers = "0.15"
+tokio-test = "0.4"
+wiremock = "0.6"
+futures = "0.3"
+# criterion = "0.5"       # Add for benchmarking

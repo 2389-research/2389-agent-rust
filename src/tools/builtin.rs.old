@@ -1,0 +1,695 @@
+//! RFC-compliant builtin tools for 2389 Agent Protocol
+//!
+//! This module implements the built-in tools with the interface specified in RFC Section 8.
+//! Each tool implements the four required methods: describe(), initialize(), execute(), shutdown().
+
+use super::{Tool, ToolDescription, ToolError};
+use async_trait::async_trait;
+use serde_json::{Value, json};
+use std::fs;
+use std::path::Path;
+
+/// HTTP request tool - builtin implementation
+pub struct HttpRequestTool {
+    client: Option<reqwest::Client>,
+    max_response_size: usize,
+}
+
+impl Default for HttpRequestTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HttpRequestTool {
+    pub fn new() -> Self {
+        Self {
+            client: None,
+            max_response_size: 1024 * 1024, // 1MB default
+        }
+    }
+}
+
+impl HttpRequestTool {
+    /// Extract readable content from HTML using a simple approach
+    /// TODO: Add article_scraper crate for better extraction
+    fn extract_readable_content(&self, html: &str, _url: &str) -> String {
+        // For now, use a simple HTML-to-text extraction
+        // This is a basic implementation that strips HTML tags
+        self.simple_html_to_text(html)
+    }
+
+    /// Simple HTML to text conversion (fallback implementation)
+    fn simple_html_to_text(&self, html: &str) -> String {
+        
+        let mut result = String::new();
+        let mut in_tag = false;
+        let mut in_script = false;
+        let mut in_style = false;
+        let mut tag_name = String::new();
+        let chars = html.chars().peekable();
+        
+        for ch in chars {
+            match ch {
+                '<' => {
+                    in_tag = true;
+                    tag_name.clear();
+                }
+                '>' => {
+                    if in_tag {
+                        let tag_lower = tag_name.to_lowercase();
+                        
+                        // Handle script and style tags
+                        if tag_lower == "script" {
+                            in_script = true;
+                        } else if tag_lower == "/script" {
+                            in_script = false;
+                        } else if tag_lower == "style" {
+                            in_style = true;
+                        } else if tag_lower == "/style" {
+                            in_style = false;
+                        }
+                        
+                        // Add spacing for block elements
+                        if matches!(tag_lower.as_str(), "div" | "p" | "br" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "li" | "/div" | "/p" | "/h1" | "/h2" | "/h3" | "/h4" | "/h5" | "/h6" | "/li") {
+                            result.push('\n');
+                        }
+                        
+                        in_tag = false;
+                        tag_name.clear();
+                    }
+                }
+                _ => {
+                    if in_tag {
+                        tag_name.push(ch);
+                    } else if !in_script && !in_style {
+                        // Only add content if not in script or style tags
+                        if ch.is_whitespace() {
+                            // Normalize whitespace
+                            if !result.ends_with(' ') && !result.ends_with('\n') {
+                                result.push(' ');
+                            }
+                        } else {
+                            result.push(ch);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Clean up the result
+        result
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string()
+    }
+}
+#[async_trait]
+impl Tool for HttpRequestTool {
+    fn describe(&self) -> ToolDescription {
+        ToolDescription {
+            name: "http_request".to_string(),
+            description: "Make HTTP requests with optional content extraction".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"]
+                    },
+                    "url": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "extract_content": {
+                        "type": "boolean",
+                        "description": "Extract readable text content from HTML (reduces tokens)",
+                        "default": false
+                    },
+                    "headers": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "body": {
+                        "type": "string"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                    }
+                },
+                "required": ["method", "url"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn initialize(&mut self, config: Option<&Value>) -> Result<(), ToolError> {
+        if let Some(config) = config {
+            if let Some(max_size) = config.get("max_response_size").and_then(|v| v.as_u64()) {
+                self.max_response_size = max_size as usize;
+            }
+        }
+
+        self.client = Some(
+            reqwest::Client::builder()
+                .build()
+                .map_err(|e| ToolError::InitializationError(e.to_string()))?,
+        );
+
+        Ok(())
+    }
+
+    async fn execute(&self, parameters: &Value) -> Result<Value, ToolError> {
+        let client = self
+            .client
+            .as_ref()
+            .ok_or_else(|| ToolError::ExecutionError("Tool not initialized".to_string()))?;
+
+        let method = parameters["method"].as_str().unwrap();
+        let url = parameters["url"].as_str().unwrap();
+        let extract_content = parameters
+            .get("extract_content")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let mut request = match method {
+            "GET" => client.get(url),
+            "POST" => client.post(url),
+            "PUT" => client.put(url),
+            "DELETE" => client.delete(url),
+            "HEAD" => client.head(url),
+            "OPTIONS" => client.request(reqwest::Method::OPTIONS, url),
+            _ => return Err(ToolError::ExecutionError("Invalid HTTP method".to_string())),
+        };
+
+        if let Some(headers) = parameters.get("headers").and_then(|h| h.as_object()) {
+            for (key, value) in headers {
+                if let Some(value_str) = value.as_str() {
+                    request = request.header(key, value_str);
+                }
+            }
+        }
+
+        if let Some(body) = parameters.get("body").and_then(|b| b.as_str()) {
+            request = request.body(body.to_string());
+        }
+
+        let timeout = parameters
+            .get("timeout")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(30);
+
+        request = request.timeout(std::time::Duration::from_secs(timeout));
+
+        let response = request
+            .send()
+            .await
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        let status = response.status().as_u16();
+        let response_headers: std::collections::HashMap<String, String> = response
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+            .collect();
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        if body.len() > self.max_response_size {
+            return Err(ToolError::ExecutionError(format!(
+                "Response too large: {} bytes (max: {})",
+                body.len(),
+                self.max_response_size
+            )));
+        }
+
+        // Extract readable content if requested
+        let final_body = if extract_content {
+            self.extract_readable_content(&body, url)
+        } else {
+            body
+        };
+
+        Ok(json!({
+            "status": status,
+            "headers": response_headers,
+            "body": final_body,
+            "content_extracted": extract_content
+        }))
+    }
+}
+
+/// File read tool - builtin implementation
+pub struct FileReadTool {
+    max_file_size: usize,
+}
+
+impl Default for FileReadTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileReadTool {
+    pub fn new() -> Self {
+        Self {
+            max_file_size: 1024 * 1024, // 1MB default
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for FileReadTool {
+    fn describe(&self) -> ToolDescription {
+        ToolDescription {
+            name: "file_read".to_string(),
+            description: "Read file contents".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn initialize(&mut self, config: Option<&Value>) -> Result<(), ToolError> {
+        if let Some(config) = config {
+            if let Some(max_size) = config.get("max_file_size").and_then(|v| v.as_u64()) {
+                self.max_file_size = max_size as usize;
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute(&self, parameters: &Value) -> Result<Value, ToolError> {
+        let path_str = parameters["path"].as_str().unwrap();
+        let path = Path::new(path_str);
+
+        // Security check: Ensure path exists and is a file
+        if !path.exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "File not found: {path_str}"
+            )));
+        }
+
+        if !path.is_file() {
+            return Err(ToolError::ExecutionError(format!(
+                "Path is not a file: {path_str}"
+            )));
+        }
+
+        // Check file size
+        let metadata = fs::metadata(path).map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        if metadata.len() > self.max_file_size as u64 {
+            return Err(ToolError::ExecutionError(format!(
+                "File too large: {} bytes (max: {})",
+                metadata.len(),
+                self.max_file_size
+            )));
+        }
+
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        Ok(json!({
+            "content": content,
+            "size": metadata.len()
+        }))
+    }
+}
+
+/// File write tool - builtin implementation
+pub struct FileWriteTool {
+    max_file_size: usize,
+}
+
+impl Default for FileWriteTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FileWriteTool {
+    pub fn new() -> Self {
+        Self {
+            max_file_size: 1024 * 1024, // 1MB default
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for FileWriteTool {
+    fn describe(&self) -> ToolDescription {
+        ToolDescription {
+            name: "file_write".to_string(),
+            description: "Write content to file".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn initialize(&mut self, config: Option<&Value>) -> Result<(), ToolError> {
+        if let Some(config) = config {
+            if let Some(max_size) = config.get("max_file_size").and_then(|v| v.as_u64()) {
+                self.max_file_size = max_size as usize;
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute(&self, parameters: &Value) -> Result<Value, ToolError> {
+        let path_str = parameters["path"].as_str().unwrap();
+        let content = parameters["content"].as_str().unwrap();
+
+        if content.len() > self.max_file_size {
+            return Err(ToolError::ExecutionError(format!(
+                "Content too large: {} bytes (max: {})",
+                content.len(),
+                self.max_file_size
+            )));
+        }
+
+        let path = Path::new(path_str);
+
+        // Create parent directories if they don't exist
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+        }
+
+        tokio::fs::write(path, content)
+            .await
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        Ok(json!({
+            "path": path_str,
+            "bytes_written": content.len()
+        }))
+    }
+}
+/// Web search tool using Serper API - builtin implementation
+pub struct WebSearchTool {
+    client: Option<reqwest::Client>,
+    api_key: Option<String>,
+    max_results: usize,
+}
+
+impl Default for WebSearchTool {
+    fn default() -> Self {
+        Self {
+            client: None,
+            api_key: None,
+            max_results: 10,
+        }
+    }
+}
+
+impl WebSearchTool {
+    /// Create new web search tool
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[async_trait]
+impl Tool for WebSearchTool {
+    fn describe(&self) -> ToolDescription {
+        ToolDescription {
+            name: "web_search".to_string(),
+            description: "Search web for current information".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "num_results": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 10
+                    }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            }),
+        }
+    }
+
+    async fn initialize(&mut self, config: Option<&Value>) -> Result<(), ToolError> {
+        // Get API key from environment variable
+        self.api_key = std::env::var("SERPER_API_KEY").ok();
+        if self.api_key.is_none() {
+            return Err(ToolError::InitializationError(
+                "SERPER_API_KEY environment variable not set".to_string()
+            ));
+        }
+
+        // Configure from config if provided
+        if let Some(config) = config {
+            if let Some(max_results) = config.get("max_results").and_then(|v| v.as_u64()) {
+                self.max_results = max_results as usize;
+            }
+        }
+
+        // Initialize HTTP client
+        self.client = Some(
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .map_err(|e| ToolError::InitializationError(e.to_string()))?,
+        );
+
+        Ok(())
+    }
+
+    async fn execute(&self, parameters: &Value) -> Result<Value, ToolError> {
+        let client = self
+            .client
+            .as_ref()
+            .ok_or_else(|| ToolError::ExecutionError("Tool not initialized".to_string()))?;
+
+        let api_key = self
+            .api_key
+            .as_ref()
+            .ok_or_else(|| ToolError::ExecutionError("API key not configured".to_string()))?;
+
+        let query = parameters["query"]
+            .as_str()
+            .ok_or_else(|| ToolError::ExecutionError("Query parameter is required".to_string()))?;
+
+        let num_results = parameters
+            .get("num_results")
+            .and_then(|n| n.as_u64())
+            .unwrap_or(10) as usize;
+
+        // Build request payload with defaults
+        let payload = json!({
+            "q": query,
+            "num": std::cmp::min(num_results, self.max_results),
+            "gl": "us",
+            "hl": "en"
+        });
+
+        // Use standard search endpoint
+        let endpoint = "https://google.serper.dev/search";
+
+        // Make request to Serper API
+        let response = client
+            .post(endpoint)
+            .header("X-API-KEY", api_key)
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ToolError::ExecutionError(format!("Request failed: {e}")))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ToolError::ExecutionError(format!(
+                "Serper API error ({}): {}",
+                status.as_u16(),
+                error_text
+            )));
+        }
+
+        let search_result: Value = response
+            .json()
+            .await
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to parse response: {e}")))?;
+
+        // Extract key information for the agent (simplified)
+        let mut formatted_results = Vec::new();
+        
+        if let Some(organic) = search_result.get("organic").and_then(|o| o.as_array()) {
+            for result in organic.iter().take(num_results) {
+                if let (Some(title), Some(link)) = (
+                    result.get("title").and_then(|t| t.as_str()),
+                    result.get("link").and_then(|l| l.as_str()),
+                ) {
+                    let snippet = result
+                        .get("snippet")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("");
+                    
+                    formatted_results.push(json!({
+                        "title": title,
+                        "url": link,
+                        "snippet": snippet
+                    }));
+                }
+            }
+        }
+
+        Ok(json!({
+            "query": query,
+            "results": formatted_results
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_http_request_tool_describe() {
+        let tool = HttpRequestTool::new();
+        let description = tool.describe();
+
+        assert_eq!(description.name, "http_request");
+        assert_eq!(description.description, "Make HTTP requests with optional content extraction");
+        assert!(description.parameters.is_object());
+    }
+
+    #[tokio::test]
+    async fn test_http_request_tool_initialize() {
+        let mut tool = HttpRequestTool::new();
+        let config = json!({"max_response_size": 2048});
+
+        let result = tool.initialize(Some(&config)).await;
+        assert!(result.is_ok());
+        assert_eq!(tool.max_response_size, 2048);
+    }
+
+    #[tokio::test]
+    async fn test_file_read_tool_describe() {
+        let tool = FileReadTool::new();
+        let description = tool.describe();
+
+        assert_eq!(description.name, "file_read");
+        assert_eq!(description.description, "Read file contents");
+        assert!(description.parameters.is_object());
+    }
+
+    #[tokio::test]
+    async fn test_file_write_tool_describe() {
+        let tool = FileWriteTool::new();
+        let description = tool.describe();
+
+        assert_eq!(description.name, "file_write");
+        assert_eq!(description.description, "Write content to file");
+        assert!(description.parameters.is_object());
+    }
+
+    #[tokio::test]
+    async fn test_file_operations() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let test_content = "Hello, RFC compliance!";
+
+        // Test file write
+        let mut write_tool = FileWriteTool::new();
+        write_tool.initialize(None).await.unwrap();
+
+        let write_params = json!({
+            "path": file_path.to_string_lossy(),
+            "content": test_content
+        });
+
+        let write_result = write_tool.execute(&write_params).await;
+        assert!(write_result.is_ok());
+
+        // Test file read
+        let mut read_tool = FileReadTool::new();
+        read_tool.initialize(None).await.unwrap();
+
+        let read_params = json!({
+            "path": file_path.to_string_lossy()
+        });
+
+        let read_result = read_tool.execute(&read_params).await;
+        assert!(read_result.is_ok());
+
+        let binding = read_result.unwrap();
+        let result_content = binding["content"].as_str().unwrap();
+        assert_eq!(result_content, test_content);
+    }
+
+    #[tokio::test]
+    async fn test_file_read_nonexistent() {
+        let mut tool = FileReadTool::new();
+        tool.initialize(None).await.unwrap();
+
+        let params = json!({
+            "path": "/nonexistent/file.txt"
+        });
+
+        let result = tool.execute(&params).await;
+        assert!(matches!(result, Err(ToolError::ExecutionError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_file_size_limits() {
+        let mut tool = FileReadTool::new();
+        tool.max_file_size = 10; // Very small limit
+        tool.initialize(None).await.unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("large.txt");
+        std::fs::write(&file_path, "This content is too long for our limit").unwrap();
+
+        let params = json!({
+            "path": file_path.to_string_lossy()
+        });
+
+        let result = tool.execute(&params).await;
+        assert!(matches!(result, Err(ToolError::ExecutionError(_))));
+    }
+}

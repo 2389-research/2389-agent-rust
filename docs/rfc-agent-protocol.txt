@@ -1,0 +1,398 @@
+2389 Agent Protocol                                          August 2025
+
+
+                           2389 Agent Protocol
+
+Authors: [To be specified]
+Date: August 26, 2025  
+Category: Informational
+
+                               Abstract
+
+   The 2389 Agent Protocol defines a standard for creating interoperable
+   AI agents that communicate via MQTT. Any conforming implementation,
+   regardless of programming language or platform, MUST be able to
+   interoperate with any other conforming implementation [req: FR-001].
+
+                         Status of This Memo
+
+   This document is not an IETF standard. It uses the terminology of BCP
+   14 (RFC 2119 and RFC 8174) to indicate requirement levels.
+
+                         Requirements Language
+
+   The key words 'MUST', 'MUST NOT', 'SHALL', 'SHOULD', 'SHOULD NOT',
+   'RECOMMENDED', 'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this
+   document are to be interpreted as described in BCP 14 (RFC 2119 and
+   RFC 8174) when, and only when, they appear in all capitals.
+
+1. Introduction
+
+   This specification establishes a standard protocol for interoperable
+   AI agents using MQTT as the transport layer. The protocol enables
+   agents to process tasks, communicate status, handle errors, and chain
+   operations in pipeline configurations.
+
+2. Terminology
+
+   agent_id: A unique identifier matching pattern [a-zA-Z0-9._-]+
+            (alphanumeric, dots, underscores, hyphens only) [req: RULE-001]
+
+   conversation_id: An identifier for user conversation contexts
+
+   task envelope: A JSON structure containing task_id, conversation_id,
+                 topic, instruction, input, and optional next fields
+
+   pipeline depth: The count of nested next objects in a task envelope
+
+   canonicalization: Process of normalizing topic strings by ensuring
+                    single leading slash, removing trailing slashes, and
+                    collapsing multiple consecutive slashes
+
+3. Protocol Overview
+
+   Agents follow a defined lifecycle: startup sequence with configuration
+   loading, MQTT connection establishment, tool initialization, LLM
+   verification, and availability publication. During operation, agents
+   subscribe to input topics, process task envelopes through a 9-step
+   algorithm, and publish results or errors to conversation topics.
+   Shutdown involves publishing unavailability status and disconnecting
+   from MQTT.
+
+4. Message Transport
+
+4.1. Version Requirements
+
+   MQTT 3.1.1 REQUIRED (minimum) [req: NFR-001]
+   MQTT 5.0 RECOMMENDED [req: NFR-001]
+   Persistent sessions RECOMMENDED for reliability with QoS 1 [req: NFR-001]
+
+4.2. Quality of Service
+
+   All topics MUST use QoS 1 (at least once delivery) [req: NFR-002]
+   Agents MUST ignore retained messages on /control/agents/{agent_id}/input
+   [req: FR-005]
+
+5. Topic Structure and Canonicalization
+
+5.1. Topic Patterns
+
+   /control/agents/{agent_id}/status - Agent availability (RETAINED, QoS 1)
+   /control/agents/{agent_id}/input - Task input for agent (NOT RETAINED,
+                                     QoS 1)
+   /conversations/{conversation_id}/{agent_id} - Output to user conversations
+                                                (NOT RETAINED, QoS 1)
+
+   Where {agent_id} MUST match pattern [a-zA-Z0-9._-]+ (alphanumeric, dots,
+   underscores, hyphens only) [req: RULE-001]
+
+5.2. Canonicalization Rules
+
+   Before comparison, topics MUST be canonicalized [req: FR-006]:
+   1. Ensure single leading slash
+   2. Remove trailing slashes  
+   3. Collapse multiple consecutive slashes to single slash
+   4. Example: //control//agents/foo/ becomes /control/agents/foo
+
+6. Message Formats
+
+6.1. Task Envelope
+
+   All tasks MUST conform to this JSON structure [req: FR-007]:
+
+   {
+     "task_id": "string (UUID v4)",
+     "conversation_id": "string (conversation identifier for error routing)",
+     "topic": "string (MQTT topic for this agent)",
+     "instruction": "string or null (instruction for this agent)",
+     "input": "string or object (input data - SHOULD be object)",
+     "next": "object or null (continuation)"
+   }
+
+   Where next (if not null) contains:
+
+   {
+     "topic": "string (next agent topic or final destination)",
+     "instruction": "string or null",
+     "input": null,
+     "next": "object or null"
+   }
+
+   Input field SHOULD be an object for structured data [req: FR-007].
+   Plain strings allowed for simple cases. Input MUST be object when tool
+   parameters are expected [req: FR-007].
+
+6.2. Agent Status
+
+   Published to /control/agents/{agent_id}/status (RETAINED):
+
+   {
+     "agent_id": "string",
+     "status": "available" | "unavailable", 
+     "timestamp": "string (RFC 3339 format with Z suffix)"
+   }
+
+   Additional fields MAY be included [req: OPT-001]. Consumers MUST ignore
+   unknown fields [req: FR-008]. The timestamp MUST use RFC 3339 format
+   with Z suffix [req: RULE-003].
+
+6.3. Error Message
+
+   Published to /conversations/{conversation_id}/{agent_id} when task fails:
+
+   {
+     "error": {
+       "code": "string (error category)",
+       "message": "string (human-readable description, no sensitive data)"
+     },
+     "task_id": "string (UUID v4 from failed task)"
+   }
+
+   Error codes: tool_execution_failed, llm_error, invalid_input,
+   pipeline_depth_exceeded, internal_error
+
+   Error messages MUST NOT include stack traces, file paths, or
+   implementation details [req: RULE-002]
+
+6.4. Message Size Constraints
+
+   Agents SHOULD enforce maximum message size of 256KB [req: NFR-003]
+   Larger payloads SHOULD use external storage with reference passing
+   [req: NFR-003]
+
+7. Agent Lifecycle and Behavior
+
+7.1. Startup Sequence
+
+   1. Agent MUST load and parse configuration from agent.toml file [req: FR-002]
+   2. Agent MUST establish connection to MQTT broker using configured
+      credentials [req: FR-002]
+   3. Agent MUST configure MQTT Last Will and Testament (LWT) with
+      unavailability status [req: FR-002]
+   4. Agent MUST subscribe to /control/agents/{agent_id}/input [req: FR-002]
+   5. Agent MUST initialize all configured tools successfully [req: FR-002]
+   6. Agent MUST verify LLM adapter connectivity [req: FR-002]
+   7. Agent MUST publish availability status to
+      /control/agents/{agent_id}/status (retained) ONLY after [req: FR-002]:
+      - Receiving SUBACK for the input topic subscription
+      - Successfully initializing all tools
+      - Verifying LLM adapter connectivity
+   8. Agent MUST enter idle state awaiting tasks [req: FR-002]
+
+7.2. Shutdown Sequence
+
+   1. Agent MUST publish unavailability status to
+      /control/agents/{agent_id}/status (retained) [req: FR-003]
+   2. Agent MUST disconnect from MQTT broker [req: FR-003]
+
+7.3. Abnormal Termination
+
+   LWT MUST publish unavailability status to
+   /control/agents/{agent_id}/status (retained) [req: FR-004]
+
+7.4. Task Processing Algorithm
+
+   The complete 9-step task processing algorithm MUST be executed in
+   sequence [req: FR-014]:
+
+   1. Receive message on /control/agents/{agent_id}/input
+   2. Ignore if message is retained [req: FR-014]
+   3. Canonicalize and validate that task.topic matches the received topic
+      [req: FR-014]
+      - If mismatch: log error and discard message
+   4. Check for duplicate task_id (idempotency) [req: FR-014]
+      - If duplicate: discard without reprocessing
+   5. Check pipeline depth (count nested next objects) [req: FR-013, FR-014]
+      - If depth exceeds maximum (default 16): publish error with code
+        "pipeline_depth_exceeded" to
+        /conversations/{conversation_id}/{agent_id} and stop [req: FR-013]
+   6. Parse task envelope [req: FR-014]
+   7. Process [req: FR-014]:
+      - Call LLM with instruction, input, system prompt, and available tools
+      - Validate any tool calls against allow-list [req: NFR-005]
+      - Validate tool parameters against schemas [req: NFR-005]
+      - Execute validated tool calls
+      - Return results to LLM if needed
+      - Get final LLM response
+   8. If next is not null [req: FR-014]:
+      - Set next.input = LLM response
+      - Publish next to next.topic
+   9. Complete [req: FR-014]
+
+7.5. Idempotency Requirements
+
+   Agents SHOULD implement idempotent task processing [req: FR-010]
+   Maintain cache of recently processed task_id values [req: FR-010]
+   Discard duplicate tasks without reprocessing [req: FR-010]
+
+7.6. Error Handling
+
+   Agent MUST NOT crash on invalid input [req: FR-011]
+   Agent MUST publish error to /conversations/{conversation_id}/{agent_id}
+   [req: FR-011]
+   If conversation_id not present, agent SHOULD log error (no publication)
+   [req: FR-011]
+   Agent MUST validate all tool calls against declared tools [req: FR-011]
+   Agent MUST validate tool parameters against schemas [req: FR-011]
+   Agent MUST NOT leak sensitive information in errors [req: FR-011]
+   Agent MUST continue processing subsequent tasks after errors [req: FR-011]
+
+8. Tool Interface Specification
+
+   Every tool MUST implement three methods (optional fourth) [req: FR-009]:
+
+8.1. describe() Method
+
+   Returns JSON-serializable structure conforming to JSON Schema Draft
+   2020-12 subset:
+
+   {
+     "name": "tool_name",
+     "description": "what this tool does",
+     "parameters": {
+       "type": "object",
+       "properties": {
+         "param_name": {
+           "type": "string|number|boolean|array|object",
+           "description": "parameter description"
+         }
+       },
+       "required": ["param_name"]
+     }
+   }
+
+8.2. initialize(config) Method
+
+   Receives configuration dictionary from agent.toml
+   Performs setup (connections, load resources, etc.)
+   Called once at agent startup
+   MUST return success/failure status [req: FR-009]
+
+8.3. execute(parameters) Method
+
+   Receives parameters matching schema from describe()
+   Parameters MUST be validated against schema before execution [req: FR-009]
+   Returns JSON-serializable result
+   MUST handle errors without crashing agent [req: FR-009]
+
+8.4. shutdown() Method [OPTIONAL]
+
+   Performs cleanup (close connections, release resources)
+   Called during agent shutdown
+
+9. Configuration Format
+
+   The agent.toml file format:
+
+   [agent]
+   id = "string (matching [a-zA-Z0-9._-]+)"
+   description = "string (what this agent does)"
+
+   [mqtt]
+   broker_url = "string (URL with protocol and port)"
+   username_env = "string (env var containing username)"
+   password_env = "string (env var containing password)"
+
+   [llm]
+   provider = "string (provider name)"
+   model = "string (model identifier)" 
+   api_key_env = "string (env var containing API key)"
+   system_prompt = "string (system prompt)"
+   # Optional:
+   temperature = 0.7  # 0.0 to 2.0
+   max_tokens = 4000
+
+   [tools]
+   # Tools are specified as name = implementation mappings
+   tool_name = { impl = "identifier", config = { key = "value" } }
+   # Simple form when no config needed:
+   tool_name = "identifier"
+
+   Note: impl format is implementation-specific. Compiled languages MAY use
+   registry-based tool loading rather than dynamic loading [req: OPT-002].
+
+10. Internal Representations
+
+   Implementations MAY convert JSON inputs to typed internal representations
+   [req: OPT-003]
+   Wire format MUST remain JSON for interoperability [req: FR-012]
+
+11. Security Considerations
+
+   Agent MUST use TLS/SSL for MQTT with hostname verification [req: NFR-004]
+   Agent MUST read secrets only from environment variables [req: NFR-004]
+   Agent MUST NOT log credentials [req: NFR-004]
+   Agent MUST validate topics after canonicalization [req: NFR-005]
+   Agent MUST validate tool calls against allow-list [req: NFR-005]
+   Agent MUST validate tool parameters against schemas [req: NFR-005]
+   Agent MUST NOT expose internal details in error messages [req: NFR-005]
+   Agent MUST redact any PII or secrets from errors [req: NFR-005]
+
+12. Operational Considerations
+
+   Pipeline depth enforcement prevents infinite loops and resource exhaustion.
+   Message size limits ensure broker stability. Idempotency caching prevents
+   duplicate processing. Status message retention provides agent discovery.
+   Error routing to conversation topics enables user notification.
+
+13. Conformance
+
+   For each requirement, the following sections satisfy the criteria:
+
+   [req: FR-001] - Section 1: Interoperability requirement
+   [req: FR-002] - Section 7.1: Complete startup sequence  
+   [req: FR-003] - Section 7.2: Shutdown sequence
+   [req: FR-004] - Section 7.3: Abnormal termination
+   [req: FR-005] - Section 4.2: Retained message handling
+   [req: FR-006] - Section 5.2: Topic canonicalization
+   [req: FR-007] - Section 6.1: Task envelope format
+   [req: FR-008] - Section 6.2: Unknown field handling
+   [req: FR-009] - Section 8: Tool interface requirements
+   [req: FR-010] - Section 7.5: Idempotency implementation
+   [req: FR-011] - Section 7.6: Error handling requirements
+   [req: FR-012] - Section 10: JSON wire format requirement
+   [req: FR-013] - Section 7.4: Pipeline depth enforcement
+   [req: FR-014] - Section 7.4: Complete task processing algorithm
+   [req: NFR-001] - Section 4.1: MQTT version requirements
+   [req: NFR-002] - Section 4.2: QoS requirements
+   [req: NFR-003] - Section 6.4: Message size constraints
+   [req: NFR-004] - Section 11: Connection and credential security
+   [req: NFR-005] - Section 11: Validation and information disclosure security
+   [req: RULE-001] - Section 5.1: Agent ID format validation
+   [req: RULE-002] - Section 6.3: Error message content restrictions
+   [req: RULE-003] - Section 6.2: Timestamp format specification
+   [req: OPT-001] - Section 6.2: Additional fields in status messages
+   [req: OPT-002] - Section 9: Tool loading mechanisms
+   [req: OPT-003] - Section 10: Internal representation conversion
+
+14. IANA Considerations
+
+   This document has no IANA actions.
+
+15. References
+
+15.1 Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119
+              Key Words", BCP 14, RFC 8174, May 2017.
+
+   [RFC5234]  Crocker, D. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234, January 2008.
+
+15.2 Informative References
+
+   [MQTT311]  OASIS, "MQTT Version 3.1.1", October 2014.
+
+   [MQTT5]    OASIS, "MQTT Version 5.0", March 2019.
+
+Appendix A. ABNF (Informative Restatement)
+
+   See appendix/ABNF.txt for complete ABNF grammar restatements of patterns
+   defined in this specification.
+
+Authors' Addresses
+
+   [To be specified]
