@@ -14,10 +14,28 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/2389-agent-rust`
-3. Create a feature branch: `git checkout -b feature/my-feature`
-4. Make your changes
-5. Run tests: `cargo test`
-6. Submit a pull request
+3. Install git hooks: `./scripts/git-hooks/install-hooks.sh`
+4. Create a feature branch: `git checkout -b feature/my-feature`
+5. Make your changes
+6. Run tests: `cargo test`
+7. Submit a pull request
+
+### Git Hooks
+
+Pre-commit hooks automatically run formatting and linting checks:
+
+```bash
+# Install hooks (one-time setup)
+./scripts/git-hooks/install-hooks.sh
+
+# Hooks will run automatically on commit and check:
+# - Code formatting (cargo fmt)
+# - Clippy lints (cargo clippy)
+# - Quick compilation (cargo check)
+
+# To bypass hooks temporarily (not recommended):
+git commit --no-verify
+```
 
 ## Development Workflow
 

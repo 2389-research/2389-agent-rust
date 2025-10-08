@@ -17,6 +17,8 @@ pub struct AgentConfig {
     pub tools: std::collections::HashMap<String, ToolConfig>,
     #[serde(default)]
     pub budget: BudgetConfig,
+    /// V2 routing configuration (optional)
+    pub routing: Option<RoutingConfig>,
 }
 
 /// Agent section - RFC Section 9 fields only
@@ -98,6 +100,96 @@ impl Default for BudgetConfig {
     }
 }
 
+/// Routing configuration for V2 dynamic routing
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RoutingConfig {
+    /// Routing strategy: "llm" or "gatekeeper"
+    pub strategy: RoutingStrategy,
+
+    /// Maximum workflow iterations before forced completion
+    #[serde(default = "default_max_routing_iterations")]
+    pub max_iterations: usize,
+
+    /// LLM router configuration (required if strategy = "llm")
+    pub llm: Option<LlmRouterConfig>,
+
+    /// Gatekeeper router configuration (required if strategy = "gatekeeper")
+    pub gatekeeper: Option<GatekeeperRouterConfig>,
+}
+
+/// Routing strategy selection
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RoutingStrategy {
+    Llm,
+    Gatekeeper,
+}
+
+/// LLM router configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmRouterConfig {
+    /// LLM provider: "openai" or "anthropic"
+    pub provider: String,
+    /// Model identifier
+    pub model: String,
+    /// Temperature for routing decisions (default: 0.1)
+    #[serde(default = "default_routing_temperature")]
+    pub temperature: f32,
+}
+
+/// Gatekeeper router configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GatekeeperRouterConfig {
+    /// External routing service URL
+    pub url: String,
+    /// Timeout in milliseconds (default: 5000)
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+    /// Retry attempts (default: 3)
+    #[serde(default = "default_retry_attempts")]
+    pub retry_attempts: usize,
+}
+
+fn default_max_routing_iterations() -> usize {
+    10
+}
+
+fn default_routing_temperature() -> f32 {
+    0.1
+}
+
+fn default_timeout_ms() -> u64 {
+    5000
+}
+
+fn default_retry_attempts() -> usize {
+    3
+}
+
+impl RoutingConfig {
+    /// Validate routing configuration consistency
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        match self.strategy {
+            RoutingStrategy::Llm => {
+                if self.llm.is_none() {
+                    return Err(ConfigError::InvalidConfig(
+                        "LLM routing strategy requires [routing.llm] configuration".to_string(),
+                    ));
+                }
+            }
+            RoutingStrategy::Gatekeeper => {
+                if self.gatekeeper.is_none() {
+                    return Err(ConfigError::InvalidConfig(
+                        "Gatekeeper routing strategy requires [routing.gatekeeper] configuration"
+                            .to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Configuration loading errors
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -109,6 +201,8 @@ pub enum ConfigError {
     EnvVarNotFound(String),
     #[error("Invalid agent ID format: {0}")]
     InvalidAgentId(String),
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
 }
 
 impl AgentConfig {
@@ -119,6 +213,11 @@ impl AgentConfig {
 
         // Validate agent ID format per RFC
         validate_agent_id(&config.agent.id)?;
+
+        // Validate routing configuration if present
+        if let Some(ref routing) = config.routing {
+            routing.validate()?;
+        }
 
         // Resolve environment variables
         config.resolve_env_vars()?;
@@ -277,5 +376,180 @@ system_prompt = "You are helpful."
         assert_eq!(config.llm.temperature, None);
         assert_eq!(config.llm.max_tokens, None);
         assert_eq!(config.tools.len(), 0);
+    }
+
+    #[test]
+    fn test_routing_config_llm_strategy() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "llm"
+max_iterations = 10
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+temperature = 0.1
+"#;
+
+        let config: AgentConfig = toml::from_str(toml_content).unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert_eq!(routing.strategy, RoutingStrategy::Llm);
+        assert_eq!(routing.max_iterations, 10);
+
+        let llm_config = routing.llm.expect("LLM routing config should be present");
+        assert_eq!(llm_config.provider, "openai");
+        assert_eq!(llm_config.model, "gpt-4o-mini");
+        assert_eq!(llm_config.temperature, 0.1);
+    }
+
+    #[test]
+    fn test_routing_config_gatekeeper_strategy() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "gatekeeper"
+max_iterations = 15
+
+[routing.gatekeeper]
+url = "http://localhost:8080/route"
+timeout_ms = 3000
+retry_attempts = 5
+"#;
+
+        let config: AgentConfig = toml::from_str(toml_content).unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert_eq!(routing.strategy, RoutingStrategy::Gatekeeper);
+        assert_eq!(routing.max_iterations, 15);
+
+        let gk_config = routing
+            .gatekeeper
+            .expect("Gatekeeper routing config should be present");
+        assert_eq!(gk_config.url, "http://localhost:8080/route");
+        assert_eq!(gk_config.timeout_ms, 3000);
+        assert_eq!(gk_config.retry_attempts, 5);
+    }
+
+    #[test]
+    fn test_routing_config_defaults() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "llm"
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+"#;
+
+        let config: AgentConfig = toml::from_str(toml_content).unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+
+        // Test default values
+        assert_eq!(routing.max_iterations, 10); // default
+
+        let llm_config = routing.llm.expect("LLM config should be present");
+        assert_eq!(llm_config.temperature, 0.1); // default
+    }
+
+    #[test]
+    fn test_routing_config_missing_llm_when_strategy_llm() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "llm"
+# Missing [routing.llm] section!
+"#;
+
+        let result: Result<AgentConfig, _> = toml::from_str(toml_content);
+        // Should parse fine - validation happens separately
+        assert!(result.is_ok());
+
+        // But routing config should be invalid
+        let config = result.unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert!(routing.llm.is_none(), "LLM config should be None");
+    }
+
+    #[test]
+    fn test_routing_config_missing_gatekeeper_when_strategy_gatekeeper() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+description = "Test agent"
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+
+[llm]
+provider = "openai"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+system_prompt = "You are helpful."
+
+[routing]
+strategy = "gatekeeper"
+# Missing [routing.gatekeeper] section!
+"#;
+
+        let result: Result<AgentConfig, _> = toml::from_str(toml_content);
+        // Should parse fine - validation happens separately
+        assert!(result.is_ok());
+
+        // But routing config should be invalid
+        let config = result.unwrap();
+        let routing = config.routing.expect("Routing config should be present");
+        assert!(
+            routing.gatekeeper.is_none(),
+            "Gatekeeper config should be None"
+        );
     }
 }

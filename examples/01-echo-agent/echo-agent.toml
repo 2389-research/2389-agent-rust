@@ -17,6 +17,42 @@ system_prompt = "You are a helpful AI assistant that echoes messages back to use
 max_tool_calls = 15
 max_iterations = 8
 
-[[tools]]
-name = "echo"
-implementation = "builtin"
+[tools]
+echo = "builtin"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V2 ROUTING CONFIGURATION (Optional)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Enable dynamic multi-agent routing by uncommenting one of the configurations below.
+# This allows agents to make intelligent routing decisions based on task requirements.
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Option 1: LLM-Based Routing (Recommended for flexibility)
+# ───────────────────────────────────────────────────────────────────────────────
+# Uses an LLM to analyze tasks and decide which agent should handle them next.
+# Best for: Complex routing logic, natural language task analysis, adaptive workflows
+#
+# [routing]
+# strategy = "llm"
+# max_iterations = 10  # Maximum workflow steps before forced completion
+#
+# [routing.llm]
+# provider = "openai"              # "openai" or "anthropic"
+# model = "gpt-4o-mini"            # Fast, cost-effective model for routing decisions
+# temperature = 0.1                # Low temperature for consistent routing logic
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Option 2: Gatekeeper Routing (Enterprise/Production)
+# ───────────────────────────────────────────────────────────────────────────────
+# External routing service that provides centralized routing decisions.
+# Best for: Enterprise deployments, auditing, policy enforcement, cost control
+#
+# [routing]
+# strategy = "gatekeeper"
+# max_iterations = 15
+#
+# [routing.gatekeeper]
+# url = "http://localhost:8080/route"  # Your gatekeeper service endpoint
+# timeout_ms = 5000                     # Request timeout (default: 5000ms)
+# retry_attempts = 3                    # Number of retries on failure (default: 3)

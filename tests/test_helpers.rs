@@ -27,5 +27,6 @@ pub fn test_config() -> AgentConfig {
         },
         tools: HashMap::new(),
         budget: BudgetConfig::default(),
+        routing: None, // V2 routing disabled by default in tests
     }
 }
