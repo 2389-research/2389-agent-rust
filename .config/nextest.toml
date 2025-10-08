@@ -8,8 +8,8 @@
 dir = "target/nextest"
 
 [profile.default]
-# Number of tests to run simultaneously (0 = number of CPUs)
-test-threads = 0
+# Number of tests to run simultaneously (num-cpus = number of CPUs)
+test-threads = "num-cpus"
 
 # Number of retries for failing tests (helps with flaky tests)
 retries = 0
