@@ -547,6 +547,9 @@ strategy = "gatekeeper"
         // But routing config should be invalid
         let config = result.unwrap();
         let routing = config.routing.expect("Routing config should be present");
-        assert!(routing.gatekeeper.is_none(), "Gatekeeper config should be None");
+        assert!(
+            routing.gatekeeper.is_none(),
+            "Gatekeeper config should be None"
+        );
     }
 }
