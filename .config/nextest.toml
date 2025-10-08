@@ -1,0 +1,71 @@
+# nextest configuration for 2389-agent-rust
+#
+# This file configures cargo-nextest for optimized test execution in CI and locally.
+# See: https://nexte.st/book/configuration.html
+
+[store]
+# Directory where nextest stores its metadata
+dir = "target/nextest"
+
+[profile.default]
+# Number of tests to run simultaneously (0 = number of CPUs)
+test-threads = 0
+
+# Number of retries for failing tests (helps with flaky tests)
+retries = 0
+
+# Show test output for failing tests
+failure-output = "immediate"
+
+# Show test output for passing tests
+success-output = "never"
+
+# Show test output for all tests on final status
+final-status-level = "fail"
+
+# Test slowness threshold - tests slower than this are highlighted
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+# CI-optimized profile
+[profile.ci]
+# Inherit from default profile
+inherit = "default"
+
+# Fail fast - stop on first failure (can be overridden with --no-fail-fast)
+fail-fast = false
+
+# Show output for passing tests too (helpful for debugging CI issues)
+success-output = "immediate-final"
+
+# Retries for CI (helps with transient failures in integration tests)
+retries = 1
+
+# Stricter timeout for CI
+slow-timeout = { period = "30s", terminate-after = 1 }
+
+# Test groups for better organization
+[[profile.ci.overrides]]
+filter = 'test(integration)'
+slow-timeout = { period = "120s" }
+
+[[profile.ci.overrides]]
+filter = 'test(mqtt)'
+slow-timeout = { period = "90s" }
+retries = 2  # MQTT tests can be flaky due to Docker
+
+# Development profile for fast local feedback
+[profile.dev]
+inherit = "default"
+
+# Fail fast during development
+fail-fast = true
+
+# Less verbose output
+success-output = "never"
+failure-output = "immediate"
+
+# More lenient timeouts locally
+slow-timeout = { period = "120s" }
+
+# No retries during development (want to see real failures)
+retries = 0
