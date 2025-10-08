@@ -13,15 +13,15 @@ use agent2389::config::MqttSection;
 use agent2389::llm::provider::{
     CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmProvider, TokenUsage,
 };
-use agent2389::protocol::TaskEnvelopeWrapper;
 use agent2389::protocol::messages::TaskEnvelope;
+use agent2389::protocol::TaskEnvelopeWrapper;
 use agent2389::testing::mocks::{MockLlmProvider, MockTransport};
 use agent2389::tools::ToolSystem;
 use agent2389::transport::mqtt::MqttClient;
 use async_trait::async_trait;
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;

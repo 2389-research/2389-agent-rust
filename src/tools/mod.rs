@@ -210,11 +210,9 @@ mod tests {
         let result = tool_system.initialize(&tool_configs).await;
         assert!(result.is_ok());
         assert_eq!(tool_system.list_tools().len(), 1);
-        assert!(
-            tool_system
-                .list_tools()
-                .contains(&"http_request".to_string())
-        );
+        assert!(tool_system
+            .list_tools()
+            .contains(&"http_request".to_string()));
     }
 
     #[tokio::test]

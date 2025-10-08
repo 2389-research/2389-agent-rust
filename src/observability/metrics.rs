@@ -6,8 +6,8 @@
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Global metrics collector instance
@@ -504,7 +504,11 @@ impl MetricsCollector {
     fn calculate_connection_duration(&self, now: u64) -> u64 {
         if self.mqtt_connected.load(Ordering::Relaxed) {
             let start_time = self.connection_start_time.load(Ordering::Relaxed);
-            if start_time > 0 { now - start_time } else { 0 }
+            if start_time > 0 {
+                now - start_time
+            } else {
+                0
+            }
         } else {
             0
         }

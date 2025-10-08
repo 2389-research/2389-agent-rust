@@ -52,7 +52,7 @@ pub trait Transport: Send + Sync {
 
     /// Publish arbitrary message to specified topic (for progress reporting and other generic use cases)
     async fn publish(&self, topic: &str, payload: Vec<u8>, retain: bool)
-    -> Result<(), Self::Error>;
+        -> Result<(), Self::Error>;
 
     /// Check if transport is currently connected
     fn is_connected(&self) -> bool;

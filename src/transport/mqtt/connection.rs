@@ -4,10 +4,10 @@
 //! configuration handling, and topic construction.
 
 use crate::config::MqttSection;
-use crate::protocol::{AgentStatus, canonicalize_topic};
-use rumqttc::Transport as RumqttcTransport;
+use crate::protocol::{canonicalize_topic, AgentStatus};
 use rumqttc::v5::mqttbytes::v5::LastWill;
-use rumqttc::v5::{MqttOptions, mqttbytes::QoS};
+use rumqttc::v5::{mqttbytes::QoS, MqttOptions};
+use rumqttc::Transport as RumqttcTransport;
 use std::time::Duration;
 use thiserror::Error;
 use url::Url;

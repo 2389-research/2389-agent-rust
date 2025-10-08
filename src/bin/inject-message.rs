@@ -31,8 +31,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
-use serde_json::{Value, json};
-use tokio::time::{Duration, sleep};
+use serde_json::{json, Value};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 // Standalone implementation - no library dependencies due to compilation issues

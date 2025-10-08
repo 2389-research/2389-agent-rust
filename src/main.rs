@@ -11,7 +11,7 @@ use std::process;
 use std::sync::Arc;
 use tokio::{
     signal,
-    time::{Duration, sleep},
+    time::{sleep, Duration},
 };
 use tracing::{error, info};
 

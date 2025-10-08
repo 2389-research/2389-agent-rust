@@ -12,14 +12,14 @@ use agent2389::agent::processor::AgentProcessor;
 use agent2389::llm::provider::{
     CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmProvider, TokenUsage,
 };
-use agent2389::protocol::TaskEnvelopeWrapper;
 use agent2389::protocol::messages::TaskEnvelope;
+use agent2389::protocol::TaskEnvelopeWrapper;
 use agent2389::testing::mocks::{MockLlmProvider, MockTransport};
 use agent2389::tools::ToolSystem;
 use async_trait::async_trait;
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// LLM provider that fails first N times, then succeeds

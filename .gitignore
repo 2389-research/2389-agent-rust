@@ -12,6 +12,8 @@ package-lock.json
 /.serena
 debug_test
 debug_test.*
+*.old
+*.bak
 
 # Test artifacts
 /proptest-regressions

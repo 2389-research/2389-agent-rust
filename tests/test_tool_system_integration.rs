@@ -1,7 +1,7 @@
 use agent2389::config::ToolConfig;
 use agent2389::tools::{Tool, ToolDescription, ToolError, ToolSystem};
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,11 +27,9 @@ async fn test_tool_initialization_with_valid_config() {
 
     assert!(result.is_ok());
     assert_eq!(tool_system.list_tools().len(), 2);
-    assert!(
-        tool_system
-            .list_tools()
-            .contains(&"http_request".to_string())
-    );
+    assert!(tool_system
+        .list_tools()
+        .contains(&"http_request".to_string()));
     assert!(tool_system.list_tools().contains(&"file_read".to_string()));
 }
 
@@ -450,11 +448,9 @@ async fn test_tool_registry_populated_after_initialization() {
     tool_system.initialize(&tool_configs).await.unwrap();
 
     assert_eq!(tool_system.list_tools().len(), 3);
-    assert!(
-        tool_system
-            .list_tools()
-            .contains(&"http_request".to_string())
-    );
+    assert!(tool_system
+        .list_tools()
+        .contains(&"http_request".to_string()));
     assert!(tool_system.list_tools().contains(&"file_read".to_string()));
     assert!(tool_system.list_tools().contains(&"file_write".to_string()));
 }

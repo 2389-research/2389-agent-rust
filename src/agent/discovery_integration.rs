@@ -7,7 +7,7 @@ use super::discovery::{AgentRegistry, AgentStatusMessage};
 use crate::error::{AgentError, AgentResult};
 use crate::protocol::topics::canonicalize_topic;
 use rumqttc::v5::mqttbytes::v5::Packet;
-use rumqttc::v5::{AsyncClient, Event, mqttbytes::QoS};
+use rumqttc::v5::{mqttbytes::QoS, AsyncClient, Event};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 

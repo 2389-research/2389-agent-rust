@@ -8,8 +8,8 @@
 
 mod mqtt_integration_helpers;
 
-use agent2389::transport::Transport;
 use agent2389::transport::mqtt::MqttClient;
+use agent2389::transport::Transport;
 use mqtt_integration_helpers::MqttTestHarness;
 use std::time::{Duration, Instant};
 use testcontainers::clients::Cli;

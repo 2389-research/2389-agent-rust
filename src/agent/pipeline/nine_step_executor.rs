@@ -178,9 +178,9 @@ impl NineStepExecutor {
     }
 }
 
-// TaskProcessor implementation is temporarily disabled while refactoring
-// The pipeline orchestrator now calls AgentProcessor directly
-// TODO: Consider whether TaskProcessor is needed or if AgentProcessor is sufficient
+// Note: AgentProcessor handles all task processing for the v1.0 protocol.
+// TaskProcessor was considered during refactoring but determined unnecessary.
+// The pipeline orchestrator calls AgentProcessor directly for clean separation of concerns.
 
 #[cfg(test)]
 mod tests {
@@ -299,12 +299,10 @@ mod tests {
         let error = NineStepExecutor::create_pipeline_depth_error(task_id, 10, 5);
 
         assert_eq!(error.task_id, task_id);
-        assert!(
-            error
-                .error
-                .message
-                .contains("Pipeline depth 10 exceeds maximum 5")
-        );
+        assert!(error
+            .error
+            .message
+            .contains("Pipeline depth 10 exceeds maximum 5"));
     }
 
     #[test]

@@ -216,7 +216,7 @@ mod tests {
         let decision = parse_agent_decision(response).unwrap();
         assert_eq!(decision.schema_version, Some("1.0".to_string()));
         assert!(decision.workflow_complete);
-        
+
         // Verify the result is extracted as a string
         if let Value::String(content) = &decision.result {
             assert_eq!(content, "Article content here");
