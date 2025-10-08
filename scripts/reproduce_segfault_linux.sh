@@ -13,14 +13,21 @@ echo "=== Article Scraper Segfault Reproduction ==="
 echo "Project root: $PROJECT_ROOT"
 echo ""
 
-# Use the same Ubuntu version as GitHub Actions
-UBUNTU_VERSION="22.04"
+# GitHub Actions ubuntu-latest uses Ubuntu 24.04 as of Jan 2025
+# You can override with: UBUNTU_VERSION=22.04 ./reproduce_segfault_linux.sh
+UBUNTU_VERSION="${UBUNTU_VERSION:-24.04}"
 RUST_VERSION="stable"
+
+echo "Using Ubuntu version: $UBUNTU_VERSION"
+echo "Note: GitHub Actions ubuntu-latest = Ubuntu 24.04 (as of 2025-01-17)"
+echo "      To test Ubuntu 22.04: UBUNTU_VERSION=22.04 $0"
+echo ""
 
 echo "Building Docker image with Ubuntu $UBUNTU_VERSION..."
 
-docker build -t article-scraper-debug -f - "$PROJECT_ROOT" <<'EOF'
-FROM ubuntu:22.04
+docker build -t article-scraper-debug-$UBUNTU_VERSION --build-arg UBUNTU_VERSION=$UBUNTU_VERSION -f - "$PROJECT_ROOT" <<'EOF'
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION}
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -60,13 +67,22 @@ echo "=== Running tests in Docker ==="
 echo ""
 
 # Run tests with various debugging options
+# Match GitHub Actions environment variables
 docker run --rm \
     -v "$PROJECT_ROOT":/workspace \
     -w /workspace \
     --cap-add=SYS_PTRACE \
     --security-opt seccomp=unconfined \
-    article-scraper-debug \
+    -e RUST_BACKTRACE=1 \
+    -e CARGO_TERM_COLOR=always \
+    article-scraper-debug-$UBUNTU_VERSION \
     bash -c '
+        echo "=== Environment ==="
+        echo "Ubuntu version: $(cat /etc/os-release | grep VERSION= | head -1)"
+        echo "Rust version: $(rustc --version)"
+        echo "RUST_BACKTRACE: $RUST_BACKTRACE"
+        echo ""
+
         echo "=== Test 1: Run minimal article_scraper test ==="
         echo "This should reproduce the segfault..."
         echo ""

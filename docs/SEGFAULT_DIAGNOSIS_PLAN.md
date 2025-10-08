@@ -57,12 +57,19 @@ error: process didn't exit successfully: (signal: 11, SIGSEGV: invalid memory re
 
 **Commands**:
 ```bash
-# Use official GitHub Actions Ubuntu image
+# Use exact GitHub Actions Ubuntu image
+# Note: ubuntu-latest = Ubuntu 24.04 as of Jan 2025
 docker run -it --rm \
   -v $(pwd):/workspace \
   -w /workspace \
-  ubuntu:22.04 \
+  ubuntu:24.04 \
   bash
+
+# Or use our reproduction script (matches GitHub Actions exactly)
+./scripts/reproduce_segfault_linux.sh
+
+# To test Ubuntu 22.04 specifically:
+UBUNTU_VERSION=22.04 ./scripts/reproduce_segfault_linux.sh
 
 # Inside container:
 apt-get update && apt-get install -y \
