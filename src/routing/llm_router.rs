@@ -51,14 +51,14 @@ impl LlmRouter {
         self
     }
 
-    /// Check if the provider is OpenAI
+    /// Check if the provider is OpenAI (case-insensitive)
     fn is_openai_provider(&self) -> bool {
-        self.provider.name() == "openai"
+        self.provider.name().eq_ignore_ascii_case("openai")
     }
 
-    /// Check if the provider is Anthropic
+    /// Check if the provider is Anthropic (case-insensitive)
     fn is_anthropic_provider(&self) -> bool {
-        self.provider.name() == "anthropic"
+        self.provider.name().eq_ignore_ascii_case("anthropic")
     }
 
     /// Build completion request with provider-specific structured output configuration
@@ -119,6 +119,12 @@ impl LlmRouter {
 
             request.tools = Some(vec![tool]);
             request.tool_choice = Some("required".to_string());
+        } else {
+            // Unsupported provider - no structured output configuration
+            warn!(
+                provider = self.provider.name(),
+                "Provider does not support structured output; routing may fail"
+            );
         }
 
         request
@@ -485,37 +491,199 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_openai_provider() {
-        use crate::testing::mocks::MockLlmProvider;
+    fn test_provider_detection_is_case_insensitive() {
+        // Test OpenAI provider detection with various casings
+        struct OpenAiUpperProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for OpenAiUpperProvider {
+            fn name(&self) -> &str {
+                "OpenAI"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
 
-        let provider = Arc::new(MockLlmProvider::new(vec![]));
-        // Mock provider name is "mock" by default, but in real usage:
-        // OpenAI provider returns "openai"
+        struct OpenAiAllCapsProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for OpenAiAllCapsProvider {
+            fn name(&self) -> &str {
+                "OPENAI"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
 
-        let router = LlmRouter::new(provider, "gpt-4o-mini".to_string());
+        // Test Anthropic provider detection with various casings
+        struct AnthropicUpperProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for AnthropicUpperProvider {
+            fn name(&self) -> &str {
+                "Anthropic"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
 
-        // This test will verify that we can detect provider type
-        let is_openai = router.is_openai_provider();
+        struct AnthropicAllCapsProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for AnthropicAllCapsProvider {
+            fn name(&self) -> &str {
+                "ANTHROPIC"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
 
-        // For mock provider, should be false
-        assert!(!is_openai, "Mock provider should not be detected as OpenAI");
+        // Test OpenAI variations
+        let router1 = LlmRouter::new(Arc::new(OpenAiUpperProvider), "model".to_string());
+        assert!(
+            router1.is_openai_provider(),
+            "Should detect 'OpenAI' as OpenAI provider"
+        );
+
+        let router2 = LlmRouter::new(Arc::new(OpenAiAllCapsProvider), "model".to_string());
+        assert!(
+            router2.is_openai_provider(),
+            "Should detect 'OPENAI' as OpenAI provider"
+        );
+
+        // Test Anthropic variations
+        let router3 = LlmRouter::new(Arc::new(AnthropicUpperProvider), "model".to_string());
+        assert!(
+            router3.is_anthropic_provider(),
+            "Should detect 'Anthropic' as Anthropic provider"
+        );
+
+        let router4 = LlmRouter::new(Arc::new(AnthropicAllCapsProvider), "model".to_string());
+        assert!(
+            router4.is_anthropic_provider(),
+            "Should detect 'ANTHROPIC' as Anthropic provider"
+        );
     }
 
     #[test]
-    fn test_detect_anthropic_provider() {
-        use crate::testing::mocks::MockLlmProvider;
+    fn test_unsupported_provider_warning() {
+        use crate::agent::discovery::AgentRegistry;
+        use crate::protocol::messages::{TaskEnvelopeV2, WorkflowContext};
+        use serde_json::json;
+        use uuid::Uuid;
 
-        let provider = Arc::new(MockLlmProvider::new(vec![]));
+        // Create a custom mock that returns an unsupported provider name
+        struct UnsupportedProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for UnsupportedProvider {
+            fn name(&self) -> &str {
+                "gemini"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec!["gemini-pro".to_string()]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
 
-        let router = LlmRouter::new(provider, "claude-sonnet-4".to_string());
+        let provider = Arc::new(UnsupportedProvider);
+        let router = LlmRouter::new(provider, "gemini-pro".to_string());
 
-        // This test will verify that we can detect provider type
-        let is_anthropic = router.is_anthropic_provider();
+        // Create a test task
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: Some("Test instruction".to_string()),
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Test query".to_string(),
+                steps_completed: vec![],
+                iteration_count: 0,
+            }),
+            routing_trace: None,
+        };
 
-        // For mock provider, should be false
+        let work_output = json!({"result": "test"});
+        let registry = AgentRegistry::new();
+
+        // Build completion request with unsupported provider
+        // This should log a warning (we can't easily test logging in unit tests,
+        // but we can verify the request is still created without panicking)
+        let request = router.build_completion_request(&task, &work_output, &registry);
+
+        // Verify neither OpenAI nor Anthropic structured output is configured
         assert!(
-            !is_anthropic,
-            "Mock provider should not be detected as Anthropic"
+            request.response_format.is_none(),
+            "Unsupported provider should not have response_format"
+        );
+        assert!(
+            request.tools.is_none(),
+            "Unsupported provider should not have tools"
+        );
+        assert!(
+            request.tool_choice.is_none(),
+            "Unsupported provider should not have tool_choice"
+        );
+
+        // Verify provider detection returns false for both
+        assert!(
+            !router.is_openai_provider(),
+            "Gemini should not be detected as OpenAI"
+        );
+        assert!(
+            !router.is_anthropic_provider(),
+            "Gemini should not be detected as Anthropic"
         );
     }
 
