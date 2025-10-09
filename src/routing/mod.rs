@@ -14,11 +14,13 @@
 //! or ID. Note: This is for agent DISCOVERY, not workflow routing decisions.
 
 pub mod agent_selector;
+pub mod gatekeeper_router;
 pub mod llm_router;
 pub mod router;
 pub mod schema;
 
 pub use agent_selector::*;
+pub use gatekeeper_router::{GatekeeperConfig, GatekeeperRouter};
 pub use llm_router::LlmRouter;
 pub use router::{Router, RoutingDecision};
 pub use schema::RoutingDecisionOutput;
