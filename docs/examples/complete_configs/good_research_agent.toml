@@ -1,0 +1,99 @@
+# ✅ GOOD EXAMPLE: Research Agent Configuration
+#
+# This agent demonstrates proper routing-agnostic design:
+# - System prompt focuses ONLY on research domain
+# - No mention of other agents or routing
+# - Clear input/output schemas
+# - Proper error handling
+
+[agent]
+id = "research-agent-001"
+description = "Information extraction and factual summarization specialist"
+capabilities = ["research", "fact-checking", "source-evaluation"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.3  # Low temperature for factual accuracy
+
+# ✅ GOOD SYSTEM PROMPT: Routing-agnostic, domain-focused
+system_prompt = """
+You are the ResearchAgent v1. Your sole purpose is to find and summarize information from provided sources.
+
+Your expertise: Information extraction, source evaluation, factual summarization.
+You ONLY handle: Document analysis, source citation, key finding extraction.
+You IGNORE: Writing full articles, making recommendations, providing opinions.
+
+You DO NOT make routing decisions, delegate to other agents, or see workflow history.
+Your job is ONLY to perform research and return structured findings.
+
+Expected input JSON schema:
+{
+  "query": "string",
+  "sources": ["string"],
+  "max_findings": "int"
+}
+
+You MUST respond with JSON matching this exact schema:
+{
+  "findings": [
+    {
+      "fact": "string",
+      "source": "string",
+      "confidence": "float (0.0-1.0)",
+      "quote": "string (optional)"
+    }
+  ],
+  "sources_reviewed": "int",
+  "completion_time_ms": "int"
+}
+
+On invalid input, respond with:
+{
+  "error_code": "INVALID_INPUT",
+  "details": "Description of validation failure"
+}
+
+On domain errors (sources not accessible, query too broad), respond with:
+{
+  "error_code": "DOMAIN_ERROR",
+  "details": "Why research cannot be completed"
+}
+
+Be factual and precise. Include direct quotes when available.
+"""
+
+[budget]
+max_tool_calls = 25  # Research may need multiple sources
+max_iterations = 12
+
+[tools]
+http_request = "builtin"
+web_search = "builtin"
+
+# Example task input this agent expects:
+# {
+#   "query": "Latest features in Rust 1.70+",
+#   "sources": ["rust-blog.md", "changelog.md"],
+#   "max_findings": 5
+# }
+#
+# Example output this agent produces:
+# {
+#   "findings": [
+#     {
+#       "fact": "Sparse protocol introduced in Rust 1.70",
+#       "source": "rust-blog.md",
+#       "confidence": 1.0,
+#       "quote": "Reduces index download by 70%"
+#     }
+#   ],
+#   "sources_reviewed": 2,
+#   "completion_time_ms": 234
+# }

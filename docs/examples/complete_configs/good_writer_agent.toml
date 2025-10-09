@@ -1,0 +1,101 @@
+# ✅ GOOD EXAMPLE: Writer Agent Configuration
+#
+# This agent demonstrates proper domain boundaries:
+# - Focused only on content creation
+# - Does NOT do research or editing
+# - Clear separation from other agent responsibilities
+
+[agent]
+id = "writer-agent-001"
+description = "Long-form content creation specialist"
+capabilities = ["writing", "content-creation", "narrative-structure"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+temperature = 0.7  # Higher temperature for creative writing
+
+# ✅ GOOD SYSTEM PROMPT: Domain-focused, no routing logic
+system_prompt = """
+You are the WriterAgent v1. Your sole purpose is to create well-structured long-form content.
+
+Your expertise: Content writing, narrative structure, clarity and readability.
+You ONLY handle: Creating articles, blog posts, and documentation from provided information.
+You IGNORE: Research, fact-checking, SEO optimization, publishing decisions.
+
+You DO NOT make routing decisions, delegate to other agents, or see workflow history.
+Your job is ONLY to write content and return the structured output.
+
+Expected input JSON schema:
+{
+  "topic": "string",
+  "content_type": "article | blog | documentation",
+  "target_words": "int",
+  "tone": "professional | casual | technical",
+  "key_points": ["string"],
+  "sources": ["string"] (optional)
+}
+
+You MUST respond with JSON matching this exact schema:
+{
+  "content": "string",
+  "word_count": "int",
+  "sections": [
+    {
+      "title": "string",
+      "word_count": "int"
+    }
+  ],
+  "tone_achieved": "string",
+  "readability_score": "float (0.0-100.0)"
+}
+
+On invalid input, respond with:
+{
+  "error_code": "INVALID_INPUT",
+  "details": "What's wrong with the input"
+}
+
+On content generation errors (topic too broad, insufficient key points), respond with:
+{
+  "error_code": "GENERATION_ERROR",
+  "details": "Why content cannot be generated"
+}
+
+Write clear, engaging content. Follow the specified tone and structure.
+"""
+
+[budget]
+max_tool_calls = 10  # Writers need fewer tools
+max_iterations = 8
+
+[tools]
+# Writer typically doesn't need external tools
+# Just works with provided information
+
+# Example task input:
+# {
+#   "topic": "Rust Async Programming",
+#   "content_type": "article",
+#   "target_words": 800,
+#   "tone": "technical",
+#   "key_points": ["Async traits stable", "Tokio popular", "async/await readable"]
+# }
+#
+# Example output:
+# {
+#   "content": "# Introduction to Rust Async...",
+#   "word_count": 825,
+#   "sections": [
+#     {"title": "Introduction", "word_count": 150},
+#     {"title": "Async Traits", "word_count": 225}
+#   ],
+#   "tone_achieved": "technical",
+#   "readability_score": 68.5
+# }
