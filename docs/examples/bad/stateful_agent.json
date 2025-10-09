@@ -1,0 +1,46 @@
+{
+  "agent_name": "StatefulAgent",
+  "version": "v1",
+  "description": "❌ BAD EXAMPLE - Agent that maintains state across invocations",
+  "system_prompt": "You are the StatefulAgent v1. You remember previous interactions and build on them.\n\nKeep track of:\n- Previous queries and responses\n- User preferences learned over time\n- Conversation history\n- State from previous invocations\n\nUse this context to provide better, more personalized responses.",
+  "example_input": {
+    "query": "Continue the analysis from last time",
+    "session_id": "abc123"
+  },
+  "example_output": {
+    "response": "As I mentioned in our previous conversation, the data shows...",
+    "continuation_from": "task-456",
+    "accumulated_findings": [
+      "Finding from invocation 1",
+      "Finding from invocation 2",
+      "Finding from invocation 3"
+    ],
+    "session_state": {
+      "total_queries": 3,
+      "user_preferences": {
+        "detail_level": "high"
+      }
+    }
+  },
+  "problems": [
+    "❌ References previous invocations",
+    "❌ Maintains session state",
+    "❌ Not self-contained (depends on history)",
+    "❌ Output references 'continuation_from'",
+    "❌ Accumulates findings across calls",
+    "❌ Tracks user preferences",
+    "❌ Cannot be tested in isolation",
+    "❌ Violates statelessness principle"
+  ],
+  "why_this_is_bad": [
+    "Breaks agent portability - can't move between workflows",
+    "Makes testing non-deterministic",
+    "Requires complex state management infrastructure",
+    "Cannot replay or reproduce results",
+    "Breaks protocol's stateless design",
+    "Impossible to parallelize agent invocations",
+    "State synchronization becomes a nightmare",
+    "Cannot cache or memoize results"
+  ],
+  "how_to_fix": "Make agent stateless. Each invocation should be self-contained. If context is needed, the Router should provide it in the input based on workflow history."
+}

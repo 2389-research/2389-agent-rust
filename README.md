@@ -611,11 +611,18 @@ cargo run --bin inject-message -- \
 
 ### Complete Documentation Set
 
+#### Core Implementation
 - **[Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md)** - Complete implementation specification
 - **[System Architecture](docs/ARCHITECTURE.md)** - Design decisions and component interactions
 - **[TaskEnvelope Protocol](docs/TASKENVELOPE_PROTOCOL.md)** - Protocol v1.0 and v2.0 specification
 - **[Agent Capabilities](docs/AGENT_CAPABILITIES.md)** - Agent discovery and capability system
+
+#### V2 Routing System
+- **[V2 Routing Architecture](docs/v2_routing_architecture.md)** - Router-based workflow decisions
+- **[Agent System Prompt Guidelines](docs/agent_system_prompts.md)** - Writing routing-agnostic agents
 - **[Dynamic Routing Analysis](DYNAMIC_ROUTING_ANALYSIS.md)** - Current state of v2.0 routing implementation
+
+#### Operations & Testing
 - **[Testing Guide](TESTING.md)** - Comprehensive testing procedures
 - **[Test Coverage](TEST_COVERAGE_SUMMARY.md)** - Current test coverage metrics
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment patterns
