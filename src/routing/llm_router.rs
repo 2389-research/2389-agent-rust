@@ -51,6 +51,85 @@ impl LlmRouter {
         self
     }
 
+    /// Check if the provider is OpenAI (case-insensitive)
+    fn is_openai_provider(&self) -> bool {
+        self.provider.name().eq_ignore_ascii_case("openai")
+    }
+
+    /// Check if the provider is Anthropic (case-insensitive)
+    fn is_anthropic_provider(&self) -> bool {
+        self.provider.name().eq_ignore_ascii_case("anthropic")
+    }
+
+    /// Build completion request with provider-specific structured output configuration
+    fn build_completion_request(
+        &self,
+        task: &TaskEnvelopeV2,
+        work_output: &Value,
+        registry: &AgentRegistry,
+    ) -> CompletionRequest {
+        use crate::llm::provider::{JsonSchemaDefinition, ResponseFormat};
+        use crate::routing::schema::RoutingDecisionOutput;
+
+        let prompt = Self::build_routing_prompt(task, work_output, registry);
+
+        let mut request = CompletionRequest {
+            model: self.model.clone(),
+            messages: vec![
+                Message {
+                    role: MessageRole::System,
+                    content: "You are a workflow routing expert. Analyze the workflow context and decide whether to complete or forward.".to_string(),
+                },
+                Message {
+                    role: MessageRole::User,
+                    content: prompt,
+                },
+            ],
+            temperature: Some(self.temperature),
+            max_tokens: Some(500),
+            top_p: None,
+            stop_sequences: None,
+            tools: None,
+            tool_choice: None,
+            response_format: None,
+            metadata: Default::default(),
+        };
+
+        // Configure structured output based on provider
+        if self.is_openai_provider() {
+            // OpenAI: Use JSON Schema with response_format
+            let schema = RoutingDecisionOutput::json_schema();
+            request.response_format = Some(ResponseFormat::JsonSchema {
+                json_schema: JsonSchemaDefinition {
+                    name: "routing_decision".to_string(),
+                    strict: Some(true),
+                    schema,
+                },
+            });
+        } else if self.is_anthropic_provider() {
+            // Anthropic: Use tool schema with tool_choice
+            use crate::tools::ToolDescription;
+
+            let schema = RoutingDecisionOutput::json_schema();
+            let tool = ToolDescription {
+                name: "routing_decision".to_string(),
+                description: "Make a routing decision for the workflow".to_string(),
+                parameters: schema,
+            };
+
+            request.tools = Some(vec![tool]);
+            request.tool_choice = Some("required".to_string());
+        } else {
+            // Unsupported provider - no structured output configuration
+            warn!(
+                provider = self.provider.name(),
+                "Provider does not support structured output; routing may fail"
+            );
+        }
+
+        request
+    }
+
     /// Format the workflow history for the LLM prompt
     fn format_workflow_history(task: &TaskEnvelopeV2) -> String {
         let context = match &task.context {
@@ -228,33 +307,17 @@ impl Router for LlmRouter {
     ) -> Result<RoutingDecision, AgentError> {
         info!("LlmRouter making routing decision");
 
-        // Build the routing prompt
-        let prompt = Self::build_routing_prompt(original_task, work_output, registry);
+        // Build completion request with provider-specific structured output
+        let request = self.build_completion_request(original_task, work_output, registry);
 
-        debug!("Routing prompt:\n{}", prompt);
-
-        // Create completion request with structured output
-        let request = CompletionRequest {
-            model: self.model.clone(),
-            messages: vec![
-                Message {
-                    role: MessageRole::System,
-                    content: "You are a workflow routing expert. Analyze the workflow context and decide whether to complete or forward.".to_string(),
-                },
-                Message {
-                    role: MessageRole::User,
-                    content: prompt,
-                },
-            ],
-            temperature: Some(self.temperature),
-            max_tokens: Some(500),
-            top_p: None,
-            stop_sequences: None,
-            tools: None,
-            tool_choice: None,
-            response_format: None,
-            metadata: Default::default(),
-        };
+        debug!(
+            "Routing prompt:\n{}",
+            request
+                .messages
+                .last()
+                .map(|m| &m.content)
+                .unwrap_or(&String::new())
+        );
 
         // Call LLM provider
         let response = self
@@ -425,5 +488,351 @@ mod tests {
         let result = LlmRouter::parse_routing_decision(&output, &work_output);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_provider_detection_is_case_insensitive() {
+        // Test OpenAI provider detection with various casings
+        struct OpenAiUpperProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for OpenAiUpperProvider {
+            fn name(&self) -> &str {
+                "OpenAI"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        struct OpenAiAllCapsProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for OpenAiAllCapsProvider {
+            fn name(&self) -> &str {
+                "OPENAI"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        // Test Anthropic provider detection with various casings
+        struct AnthropicUpperProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for AnthropicUpperProvider {
+            fn name(&self) -> &str {
+                "Anthropic"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        struct AnthropicAllCapsProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for AnthropicAllCapsProvider {
+            fn name(&self) -> &str {
+                "ANTHROPIC"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec![]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        // Test OpenAI variations
+        let router1 = LlmRouter::new(Arc::new(OpenAiUpperProvider), "model".to_string());
+        assert!(
+            router1.is_openai_provider(),
+            "Should detect 'OpenAI' as OpenAI provider"
+        );
+
+        let router2 = LlmRouter::new(Arc::new(OpenAiAllCapsProvider), "model".to_string());
+        assert!(
+            router2.is_openai_provider(),
+            "Should detect 'OPENAI' as OpenAI provider"
+        );
+
+        // Test Anthropic variations
+        let router3 = LlmRouter::new(Arc::new(AnthropicUpperProvider), "model".to_string());
+        assert!(
+            router3.is_anthropic_provider(),
+            "Should detect 'Anthropic' as Anthropic provider"
+        );
+
+        let router4 = LlmRouter::new(Arc::new(AnthropicAllCapsProvider), "model".to_string());
+        assert!(
+            router4.is_anthropic_provider(),
+            "Should detect 'ANTHROPIC' as Anthropic provider"
+        );
+    }
+
+    #[test]
+    fn test_unsupported_provider_warning() {
+        use crate::agent::discovery::AgentRegistry;
+        use crate::protocol::messages::{TaskEnvelopeV2, WorkflowContext};
+        use serde_json::json;
+        use uuid::Uuid;
+
+        // Create a custom mock that returns an unsupported provider name
+        struct UnsupportedProvider;
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for UnsupportedProvider {
+            fn name(&self) -> &str {
+                "gemini"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec!["gemini-pro".to_string()]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!()
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        let provider = Arc::new(UnsupportedProvider);
+        let router = LlmRouter::new(provider, "gemini-pro".to_string());
+
+        // Create a test task
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: Some("Test instruction".to_string()),
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Test query".to_string(),
+                steps_completed: vec![],
+                iteration_count: 0,
+            }),
+            routing_trace: None,
+        };
+
+        let work_output = json!({"result": "test"});
+        let registry = AgentRegistry::new();
+
+        // Build completion request with unsupported provider
+        // This should log a warning (we can't easily test logging in unit tests,
+        // but we can verify the request is still created without panicking)
+        let request = router.build_completion_request(&task, &work_output, &registry);
+
+        // Verify neither OpenAI nor Anthropic structured output is configured
+        assert!(
+            request.response_format.is_none(),
+            "Unsupported provider should not have response_format"
+        );
+        assert!(
+            request.tools.is_none(),
+            "Unsupported provider should not have tools"
+        );
+        assert!(
+            request.tool_choice.is_none(),
+            "Unsupported provider should not have tool_choice"
+        );
+
+        // Verify provider detection returns false for both
+        assert!(
+            !router.is_openai_provider(),
+            "Gemini should not be detected as OpenAI"
+        );
+        assert!(
+            !router.is_anthropic_provider(),
+            "Gemini should not be detected as Anthropic"
+        );
+    }
+
+    #[test]
+    fn test_build_completion_request_for_openai() {
+        use crate::agent::discovery::AgentRegistry;
+        use crate::llm::provider::ResponseFormat;
+        use crate::protocol::messages::{TaskEnvelopeV2, WorkflowContext};
+        use serde_json::json;
+        use uuid::Uuid;
+
+        // Create a custom mock that returns "openai" as provider name
+        struct OpenAiMockProvider;
+
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for OpenAiMockProvider {
+            fn name(&self) -> &str {
+                "openai"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec!["gpt-4o-mini".to_string()]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!("Not needed for this test")
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        let provider = Arc::new(OpenAiMockProvider);
+        let router = LlmRouter::new(provider, "gpt-4o-mini".to_string());
+
+        // Create a test task
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: Some("Test instruction".to_string()),
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Test query".to_string(),
+                steps_completed: vec![],
+                iteration_count: 0,
+            }),
+            routing_trace: None,
+        };
+
+        let work_output = json!({"result": "test"});
+        let registry = AgentRegistry::new();
+
+        // This should create a CompletionRequest with response_format set
+        let request = router.build_completion_request(&task, &work_output, &registry);
+
+        // Verify response_format is configured for OpenAI
+        assert!(
+            request.response_format.is_some(),
+            "OpenAI should use response_format"
+        );
+
+        match request.response_format.unwrap() {
+            ResponseFormat::JsonSchema { json_schema } => {
+                assert_eq!(json_schema.name, "routing_decision");
+                assert!(
+                    json_schema.strict.unwrap_or(false),
+                    "Should use strict mode"
+                );
+            }
+            _ => panic!("OpenAI should use JsonSchema response format"),
+        }
+    }
+
+    #[test]
+    fn test_build_completion_request_for_anthropic() {
+        use crate::agent::discovery::AgentRegistry;
+        use crate::protocol::messages::{TaskEnvelopeV2, WorkflowContext};
+        use serde_json::json;
+        use uuid::Uuid;
+
+        // Create a custom mock that returns "anthropic" as provider name
+        struct AnthropicMockProvider;
+
+        #[async_trait::async_trait]
+        impl crate::llm::provider::LlmProvider for AnthropicMockProvider {
+            fn name(&self) -> &str {
+                "anthropic"
+            }
+            fn available_models(&self) -> Vec<String> {
+                vec!["claude-sonnet-4".to_string()]
+            }
+            async fn complete(
+                &self,
+                _request: crate::llm::provider::CompletionRequest,
+            ) -> Result<crate::llm::provider::CompletionResponse, crate::llm::provider::LlmError>
+            {
+                unimplemented!("Not needed for this test")
+            }
+            async fn health_check(&self) -> Result<(), crate::llm::provider::LlmError> {
+                Ok(())
+            }
+        }
+
+        let provider = Arc::new(AnthropicMockProvider);
+        let router = LlmRouter::new(provider, "claude-sonnet-4".to_string());
+
+        // Create a test task
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: Some("Test instruction".to_string()),
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Test query".to_string(),
+                steps_completed: vec![],
+                iteration_count: 0,
+            }),
+            routing_trace: None,
+        };
+
+        let work_output = json!({"result": "test"});
+        let registry = AgentRegistry::new();
+
+        // This should create a CompletionRequest with tool_choice set
+        let request = router.build_completion_request(&task, &work_output, &registry);
+
+        // Verify tools and tool_choice are configured for Anthropic
+        assert!(request.tools.is_some(), "Anthropic should use tools");
+        assert!(
+            request.tool_choice.is_some(),
+            "Anthropic should use tool_choice"
+        );
+
+        let tools = request.tools.unwrap();
+        assert_eq!(tools.len(), 1, "Should have exactly one routing tool");
+        assert_eq!(tools[0].name, "routing_decision");
+
+        let tool_choice = request.tool_choice.unwrap();
+        assert_eq!(
+            tool_choice, "required",
+            "Anthropic should require tool usage"
+        );
     }
 }
