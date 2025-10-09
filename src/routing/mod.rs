@@ -20,7 +20,7 @@ pub mod router;
 pub mod schema;
 
 pub use agent_selector::*;
-pub use gatekeeper_router::GatekeeperRouter;
+pub use gatekeeper_router::{GatekeeperConfig, GatekeeperRouter};
 pub use llm_router::LlmRouter;
 pub use router::{Router, RoutingDecision};
 pub use schema::RoutingDecisionOutput;

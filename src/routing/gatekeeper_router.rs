@@ -12,6 +12,19 @@
 //! - Implements retry logic with exponential backoff
 //! - Enforces configurable timeouts
 //! - Maps HTTP errors to AgentError types
+//! - Flexible configuration (host, port, scheme, path)
+//!
+//! # Gatekeeper API Integration
+//!
+//! This router is designed to work with the official Gatekeeper API service.
+//! The Gatekeeper API provides several endpoints:
+//!
+//! - `/health` - Health check endpoint
+//! - `/ready` - Readiness check (model loaded)
+//! - `/should_agents_respond` - Agent routing decisions (default)
+//! - `/agents_to_add_to_chat` - Agent addition recommendations (v1)
+//! - `/agents_to_add_to_chat_v1_5` - Agent addition with gpt-3.5-turbo
+//! - `/agents_to_add_to_chat_v2` - Optimized agent addition (cached embeddings)
 //!
 //! # Request Format
 //!
@@ -36,21 +49,43 @@
 //! }
 //! ```
 //!
-//! # Example
+//! # Example - Using Builder Pattern
 //!
 //! ```no_run
-//! use agent2389::routing::gatekeeper_router::GatekeeperRouter;
+//! use agent2389::routing::gatekeeper_router::{GatekeeperRouter, GatekeeperConfig};
 //! use agent2389::routing::router::Router;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let router = GatekeeperRouter::new(
-//!     "http://localhost:8080/route".to_string(),
-//!     5000,  // 5 second timeout
-//!     3      // 3 retry attempts
-//! );
+//! // Configure for production Gatekeeper service with HTTPS
+//! let config = GatekeeperConfig::new()
+//!     .with_host("gatekeeper.example.com")
+//!     .with_port(443)
+//!     .with_scheme("https")
+//!     .with_path("/should_agents_respond")
+//!     .with_timeout_ms(5000)
+//!     .with_retry_attempts(3);
+//!
+//! let router = GatekeeperRouter::new(config);
 //!
 //! // Router automatically handles retries and timeouts
 //! // let decision = router.decide_next_step(&task, &output, &registry).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Example - Local Development
+//!
+//! ```no_run
+//! use agent2389::routing::gatekeeper_router::{GatekeeperRouter, GatekeeperConfig};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Local Gatekeeper service on default port
+//! let config = GatekeeperConfig::new()
+//!     .with_host("localhost")
+//!     .with_port(8000)
+//!     .with_path("/should_agents_respond");
+//!
+//! let router = GatekeeperRouter::new(config);
 //! # Ok(())
 //! # }
 //! ```
@@ -73,18 +108,129 @@ use tracing::{debug, info, warn};
 /// - Custom decision logic based on business rules
 /// - Rate limiting or cost-aware routing
 pub struct GatekeeperRouter {
-    /// URL of the external routing service
-    url: String,
-    /// Request timeout in milliseconds
-    timeout: Duration,
-    /// Number of retry attempts for transient failures
-    retry_attempts: usize,
+    /// Base configuration for the Gatekeeper service
+    config: GatekeeperConfig,
     /// HTTP client for making requests
     client: reqwest::Client,
 }
 
+/// Configuration for the Gatekeeper HTTP service
+///
+/// Provides flexible configuration for connecting to Gatekeeper API services
+/// with support for different schemes (http/https), custom ports, and API paths.
+#[derive(Debug, Clone)]
+pub struct GatekeeperConfig {
+    /// Hostname or IP address (e.g., "localhost", "gatekeeper.example.com")
+    pub host: String,
+    /// Port number (e.g., 8080)
+    pub port: u16,
+    /// URL scheme - "http" or "https"
+    pub scheme: String,
+    /// API endpoint path (e.g., "/should_agents_respond", "/agents_to_add_to_chat")
+    pub path: String,
+    /// Request timeout in milliseconds
+    pub timeout_ms: u64,
+    /// Number of retry attempts for transient failures (5xx errors)
+    pub retry_attempts: usize,
+}
+
+impl Default for GatekeeperConfig {
+    fn default() -> Self {
+        Self {
+            host: "localhost".to_string(),
+            port: 8000,
+            scheme: "http".to_string(),
+            path: "/should_agents_respond".to_string(),
+            timeout_ms: 5000,
+            retry_attempts: 3,
+        }
+    }
+}
+
+impl GatekeeperConfig {
+    /// Create a new GatekeeperConfig with default values
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the hostname
+    pub fn with_host(mut self, host: impl Into<String>) -> Self {
+        self.host = host.into();
+        self
+    }
+
+    /// Set the port
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    /// Set the URL scheme (http or https)
+    pub fn with_scheme(mut self, scheme: impl Into<String>) -> Self {
+        self.scheme = scheme.into();
+        self
+    }
+
+    /// Set the API endpoint path
+    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
+        self
+    }
+
+    /// Set the request timeout in milliseconds
+    pub fn with_timeout_ms(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = timeout_ms;
+        self
+    }
+
+    /// Set the number of retry attempts
+    pub fn with_retry_attempts(mut self, retry_attempts: usize) -> Self {
+        self.retry_attempts = retry_attempts;
+        self
+    }
+
+    /// Build the full URL from configuration
+    pub fn build_url(&self) -> String {
+        format!("{}://{}:{}{}", self.scheme, self.host, self.port, self.path)
+    }
+
+    /// Build timeout Duration
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_ms)
+    }
+}
+
 impl GatekeeperRouter {
-    /// Create a new GatekeeperRouter
+    /// Create a new GatekeeperRouter with custom configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - GatekeeperConfig with host, port, scheme, path, timeout, and retry settings
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use agent2389::routing::gatekeeper_router::{GatekeeperRouter, GatekeeperConfig};
+    ///
+    /// // Using builder pattern for configuration
+    /// let config = GatekeeperConfig::new()
+    ///     .with_host("gatekeeper.example.com")
+    ///     .with_port(8080)
+    ///     .with_scheme("https")
+    ///     .with_path("/should_agents_respond")
+    ///     .with_timeout_ms(5000)
+    ///     .with_retry_attempts(3);
+    ///
+    /// let router = GatekeeperRouter::new(config);
+    /// ```
+    pub fn new(config: GatekeeperConfig) -> Self {
+        Self {
+            config,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Create a new GatekeeperRouter from a full URL (legacy convenience method)
     ///
     /// # Arguments
     ///
@@ -97,18 +243,37 @@ impl GatekeeperRouter {
     /// ```
     /// use agent2389::routing::gatekeeper_router::GatekeeperRouter;
     ///
-    /// let router = GatekeeperRouter::new(
+    /// let router = GatekeeperRouter::from_url(
     ///     "http://localhost:8080/route".to_string(),
     ///     5000,  // 5 second timeout
     ///     3      // 3 retry attempts
     /// );
     /// ```
-    pub fn new(url: String, timeout_ms: u64, retry_attempts: usize) -> Self {
-        Self {
-            url,
-            timeout: Duration::from_millis(timeout_ms),
+    pub fn from_url(url: String, timeout_ms: u64, retry_attempts: usize) -> Self {
+        // For backward compatibility, store the full URL in the config
+        // The build_url method will not be used in this case
+        let config = GatekeeperConfig {
+            host: url,
+            port: 0,
+            scheme: String::new(),
+            path: String::new(),
+            timeout_ms,
             retry_attempts,
+        };
+
+        Self {
+            config,
             client: reqwest::Client::new(),
+        }
+    }
+
+    /// Get the URL to use for API calls
+    fn url(&self) -> String {
+        // If scheme is empty, assume host contains the full URL (legacy mode)
+        if self.config.scheme.is_empty() {
+            self.config.host.clone()
+        } else {
+            self.config.build_url()
         }
     }
 }
@@ -221,19 +386,23 @@ impl GatekeeperRouter {
         request: &GatekeeperRequest,
     ) -> Result<GatekeeperResponse, AgentError> {
         let mut last_error = None;
+        let url = self.url();
+        let timeout = self.config.timeout();
+        let retry_attempts = self.config.retry_attempts;
 
-        for attempt in 0..=self.retry_attempts {
+        for attempt in 0..=retry_attempts {
             debug!(
                 attempt = attempt + 1,
-                max_attempts = self.retry_attempts + 1,
+                max_attempts = retry_attempts + 1,
+                url = %url,
                 "Calling gatekeeper routing service"
             );
 
             match self
                 .client
-                .post(&self.url)
+                .post(&url)
                 .json(request)
-                .timeout(self.timeout)
+                .timeout(timeout)
                 .send()
                 .await
             {
@@ -261,7 +430,7 @@ impl GatekeeperRouter {
                         );
 
                         return Ok(parsed);
-                    } else if status.is_server_error() && attempt < self.retry_attempts {
+                    } else if status.is_server_error() && attempt < retry_attempts {
                         // Server error - retry
                         warn!(
                             status = %status,
@@ -284,10 +453,10 @@ impl GatekeeperRouter {
                 }
                 Err(e) if e.is_timeout() => {
                     return Err(AgentError::InternalError {
-                        message: format!("Gatekeeper routing timeout after {:?}", self.timeout),
+                        message: format!("Gatekeeper routing timeout after {timeout:?}"),
                     });
                 }
-                Err(e) if attempt < self.retry_attempts => {
+                Err(e) if attempt < retry_attempts => {
                     // Network error - retry
                     warn!(
                         error = %e,
@@ -314,7 +483,7 @@ impl GatekeeperRouter {
         Err(AgentError::InternalError {
             message: format!(
                 "Gatekeeper routing failed after {} retries: {}",
-                self.retry_attempts,
+                retry_attempts,
                 last_error.unwrap_or_else(|| "Unknown error".to_string())
             ),
         })
@@ -387,8 +556,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Create router pointing to mock server
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+        // Create router pointing to mock server using from_url for convenience
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 5000, 3);
 
         // Create test task
         let task = TaskEnvelopeV2 {
@@ -442,7 +611,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 5000, 3);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -498,7 +667,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 5000, 3);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -544,7 +713,7 @@ mod tests {
             .await;
 
         // Router has 100ms timeout
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 100, 0);
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 100, 0);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -581,7 +750,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 5000, 3);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -617,7 +786,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+        let router = GatekeeperRouter::from_url(format!("{}/route", mock_server.uri()), 5000, 3);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -647,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn test_gatekeeper_network_error() {
         // Use a URL that will fail to connect
-        let router = GatekeeperRouter::new("http://localhost:1".to_string(), 1000, 2);
+        let router = GatekeeperRouter::from_url("http://localhost:1".to_string(), 1000, 2);
 
         let task = TaskEnvelopeV2 {
             task_id: Uuid::new_v4(),
@@ -670,5 +839,61 @@ mod tests {
 
         // Should return network error
         assert!(decision.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_config_builder() {
+        // Setup: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Parse mock server URL to get host and port
+        let mock_url = url::Url::parse(&mock_server.uri()).unwrap();
+        let host = mock_url.host_str().unwrap().to_string();
+        let port = mock_url.port().unwrap();
+
+        // Configure mock to return a complete decision
+        Mock::given(method("POST"))
+            .and(path("/agents_to_add_to_chat"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "workflow_complete": true,
+                "reasoning": "Using config builder pattern"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Create router using builder pattern
+        let config = GatekeeperConfig::new()
+            .with_host(host)
+            .with_port(port)
+            .with_scheme("http")
+            .with_path("/agents_to_add_to_chat")
+            .with_timeout_ms(5000)
+            .with_retry_attempts(2);
+
+        let router = GatekeeperRouter::new(config);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: None,
+            routing_trace: None,
+        };
+
+        let work_output = json!({"result": "Test using config builder"});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Should successfully complete
+        assert!(decision.is_ok());
+        let decision = decision.unwrap();
+        assert!(decision.is_complete());
     }
 }
