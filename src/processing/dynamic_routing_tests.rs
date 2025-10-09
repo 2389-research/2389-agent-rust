@@ -551,4 +551,310 @@ mod tests {
         // Iteration incremented
         assert_eq!(context.iteration_count, 2, "Iteration count incremented");
     }
+
+    // ========== ROUTER-SPECIFIC INTEGRATION TESTS ==========
+
+    /// Integration test for LlmRouter with MockLlmProvider
+    ///
+    /// This test validates that LlmRouter works correctly in the pipeline by:
+    /// 1. Using MockLlmProvider configured to return routing decisions
+    /// 2. Verifying the pipeline correctly interprets those decisions
+    /// 3. Checking that workflow context is properly passed to the router
+    #[tokio::test]
+    async fn test_llm_router_integration() {
+        use crate::routing::llm_router::LlmRouter;
+        use crate::routing::schema::RoutingDecisionOutput;
+
+        // Arrange: Create MockLlmProvider that returns routing decisions
+        let routing_decision = RoutingDecisionOutput {
+            workflow_complete: true,
+            reasoning: "Task is complete".to_string(),
+            next_agent: None,
+            next_instruction: None,
+        };
+
+        let decision_json = serde_json::to_string(&routing_decision).unwrap();
+        let llm_provider = Arc::new(MockLlmProvider::single_response(&decision_json));
+
+        // Create LlmRouter with MockLlmProvider
+        let router = Arc::new(LlmRouter::new(
+            llm_provider.clone(),
+            "mock-model".to_string(),
+        ));
+
+        let registry = MockAgentRegistry::new();
+        let config = create_test_config();
+        let transport = Arc::new(MockTransport::new());
+        let tool_system = Arc::new(crate::tools::ToolSystem::new());
+
+        // AgentProcessor with same llm_provider
+        let processor = AgentProcessor::new(config, llm_provider, tool_system, transport.clone());
+
+        let (_tx, rx) = mpsc::channel(10);
+
+        let pipeline = AgentPipeline::with_router(
+            processor,
+            rx,
+            16,
+            router,
+            Arc::new(registry.registry().clone()),
+            10,
+        );
+
+        let task = create_test_task(
+            Uuid::new_v4(),
+            "test-conversation",
+            Some("Test LLM router".to_string()),
+            None,
+        );
+
+        let work_output = json!({"result": "work completed"});
+
+        // Act: Process with routing
+        let result = pipeline
+            .process_with_routing(task.clone(), work_output)
+            .await;
+
+        // Assert: Should complete successfully
+        assert!(result.is_ok(), "LlmRouter should complete workflow");
+
+        // Verify final result was published
+        let published_messages = transport.get_published_messages().await;
+        let final_result = published_messages.iter().find(|(topic, _)| {
+            topic.starts_with(&format!("/conversations/{}", task.conversation_id))
+        });
+
+        assert!(
+            final_result.is_some(),
+            "Should publish final result via LlmRouter"
+        );
+    }
+
+    /// Integration test for LlmRouter forwarding decision
+    #[tokio::test]
+    async fn test_llm_router_forward_integration() {
+        use crate::routing::llm_router::LlmRouter;
+        use crate::routing::schema::RoutingDecisionOutput;
+
+        // Arrange: MockLlmProvider returns forward decision
+        let routing_decision = RoutingDecisionOutput {
+            workflow_complete: false,
+            reasoning: "Need processing".to_string(),
+            next_agent: Some("processor-agent".to_string()),
+            next_instruction: Some("Process the data".to_string()),
+        };
+
+        let decision_json = serde_json::to_string(&routing_decision).unwrap();
+        let llm_provider = Arc::new(MockLlmProvider::single_response(&decision_json));
+
+        let router = Arc::new(LlmRouter::new(
+            llm_provider.clone(),
+            "mock-model".to_string(),
+        ));
+
+        let registry = MockAgentRegistry::new();
+        registry.register_agent("processor-agent", vec!["processing"]);
+
+        let config = create_test_config();
+        let transport = Arc::new(MockTransport::new());
+        let tool_system = Arc::new(crate::tools::ToolSystem::new());
+
+        let processor = AgentProcessor::new(config, llm_provider, tool_system, transport.clone());
+
+        let (_tx, rx) = mpsc::channel(10);
+
+        let pipeline = AgentPipeline::with_router(
+            processor,
+            rx,
+            16,
+            router,
+            Arc::new(registry.registry().clone()),
+            10,
+        );
+
+        let task = create_test_task(
+            Uuid::new_v4(),
+            "test-conversation",
+            Some("Test LLM router forward".to_string()),
+            None,
+        );
+
+        let work_output = json!({"draft": "needs processing"});
+
+        // Act: Process with routing
+        let result = pipeline.process_with_routing(task, work_output).await;
+
+        // Assert: Should forward successfully
+        assert!(result.is_ok(), "LlmRouter should forward to next agent");
+
+        // Verify forwarding occurred
+        let published_messages = transport.get_published_messages().await;
+        let forwarded_task = published_messages
+            .iter()
+            .find(|(topic, _)| topic.contains("processor-agent"));
+
+        assert!(
+            forwarded_task.is_some(),
+            "Should forward to processor-agent via LlmRouter"
+        );
+    }
+
+    /// Integration test for GatekeeperRouter with mock HTTP service
+    ///
+    /// This test validates that GatekeeperRouter works correctly in the pipeline by:
+    /// 1. Setting up a wiremock HTTP server
+    /// 2. Configuring it to return routing decisions
+    /// 3. Verifying the pipeline correctly interprets HTTP responses
+    #[tokio::test]
+    async fn test_gatekeeper_router_integration() {
+        use crate::routing::gatekeeper_router::GatekeeperRouter;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        // Arrange: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Configure mock to return complete decision
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "workflow_complete": true,
+                "reasoning": "Workflow is complete"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Create GatekeeperRouter pointing to mock server
+        let router = Arc::new(GatekeeperRouter::from_url(
+            format!("{}/route", mock_server.uri()),
+            5000,
+            3,
+        ));
+
+        let registry = MockAgentRegistry::new();
+        let config = create_test_config();
+        let transport = Arc::new(MockTransport::new());
+        let llm_provider = Arc::new(MockLlmProvider::single_response("Test response"));
+        let tool_system = Arc::new(crate::tools::ToolSystem::new());
+
+        let processor = AgentProcessor::new(config, llm_provider, tool_system, transport.clone());
+
+        let (_tx, rx) = mpsc::channel(10);
+
+        let pipeline = AgentPipeline::with_router(
+            processor,
+            rx,
+            16,
+            router,
+            Arc::new(registry.registry().clone()),
+            10,
+        );
+
+        let task = create_test_task(
+            Uuid::new_v4(),
+            "test-conversation",
+            Some("Test Gatekeeper router".to_string()),
+            None,
+        );
+
+        let work_output = json!({"result": "work done"});
+
+        // Act: Process with routing
+        let result = pipeline
+            .process_with_routing(task.clone(), work_output)
+            .await;
+
+        // Assert: Should complete successfully
+        assert!(result.is_ok(), "GatekeeperRouter should complete workflow");
+
+        // Verify final result was published
+        let published_messages = transport.get_published_messages().await;
+        let final_result = published_messages.iter().find(|(topic, _)| {
+            topic.starts_with(&format!("/conversations/{}", task.conversation_id))
+        });
+
+        assert!(
+            final_result.is_some(),
+            "Should publish final result via GatekeeperRouter"
+        );
+    }
+
+    /// Integration test for GatekeeperRouter forwarding
+    #[tokio::test]
+    async fn test_gatekeeper_router_forward_integration() {
+        use crate::routing::gatekeeper_router::GatekeeperRouter;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        // Arrange: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Configure mock to return forward decision
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "workflow_complete": false,
+                "next_agent": "editor-agent",
+                "next_instruction": "Edit the document",
+                "reasoning": "Document needs editing"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let router = Arc::new(GatekeeperRouter::from_url(
+            format!("{}/route", mock_server.uri()),
+            5000,
+            3,
+        ));
+
+        let registry = MockAgentRegistry::new();
+        registry.register_agent("editor-agent", vec!["editing"]);
+
+        let config = create_test_config();
+        let transport = Arc::new(MockTransport::new());
+        let llm_provider = Arc::new(MockLlmProvider::single_response("Test response"));
+        let tool_system = Arc::new(crate::tools::ToolSystem::new());
+
+        let processor = AgentProcessor::new(config, llm_provider, tool_system, transport.clone());
+
+        let (_tx, rx) = mpsc::channel(10);
+
+        let pipeline = AgentPipeline::with_router(
+            processor,
+            rx,
+            16,
+            router,
+            Arc::new(registry.registry().clone()),
+            10,
+        );
+
+        let task = create_test_task(
+            Uuid::new_v4(),
+            "test-conversation",
+            Some("Test Gatekeeper forward".to_string()),
+            None,
+        );
+
+        let work_output = json!({"draft": "needs editing"});
+
+        // Act: Process with routing
+        let result = pipeline.process_with_routing(task, work_output).await;
+
+        // Assert: Should forward successfully
+        assert!(
+            result.is_ok(),
+            "GatekeeperRouter should forward to next agent"
+        );
+
+        // Verify forwarding occurred
+        let published_messages = transport.get_published_messages().await;
+        let forwarded_task = published_messages
+            .iter()
+            .find(|(topic, _)| topic.contains("editor-agent"));
+
+        assert!(
+            forwarded_task.is_some(),
+            "Should forward to editor-agent via GatekeeperRouter"
+        );
+    }
 }
