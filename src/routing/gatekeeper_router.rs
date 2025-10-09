@@ -426,4 +426,249 @@ mod tests {
         assert!(decision.is_forward());
         assert_eq!(decision.next_agent(), Some("editor-agent"));
     }
+
+    #[tokio::test]
+    async fn test_gatekeeper_successful_complete() {
+        // Setup: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Configure mock to return a complete decision
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "workflow_complete": true,
+                "reasoning": "Task is complete"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: Some("Test instruction".to_string()),
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Complete task".to_string(),
+                steps_completed: vec![],
+                iteration_count: 1,
+            }),
+            routing_trace: None,
+        };
+
+        let work_output = json!({"result": "Task completed successfully"});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Assert: Should return Complete decision
+        assert!(decision.is_ok());
+        let decision = decision.unwrap();
+        assert!(decision.is_complete());
+        assert!(!decision.is_forward());
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_retry_on_500() {
+        // Setup: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Use wiremock's up_to_n_times feature to simulate: 500 then 200
+        // First request returns 500
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(500))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        // Second request returns 200
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "workflow_complete": true,
+                "reasoning": "Success on retry"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: Some(WorkflowContext {
+                original_query: "Test".to_string(),
+                steps_completed: vec![],
+                iteration_count: 0,
+            }),
+            routing_trace: None,
+        };
+
+        let work_output = json!({});
+        let registry = AgentRegistry::new();
+
+        // Should succeed on retry
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        assert!(decision.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_timeout() {
+        // Setup: Start mock HTTP server
+        let mock_server = MockServer::start().await;
+
+        // Mock server delays response beyond timeout
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"workflow_complete": true}))
+                    .set_delay(Duration::from_secs(10)), // 10 second delay
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Router has 100ms timeout
+        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 100, 0);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: None,
+            routing_trace: None,
+        };
+
+        let work_output = json!({});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Should return timeout error
+        assert!(decision.is_err());
+        let err = decision.unwrap_err();
+        assert!(err.to_string().contains("timeout"));
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_404_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: None,
+            routing_trace: None,
+        };
+
+        let work_output = json!({});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Should return error for 404
+        assert!(decision.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_invalid_json() {
+        let mock_server = MockServer::start().await;
+
+        // Return 200 but with invalid JSON
+        Mock::given(method("POST"))
+            .and(path("/route"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not valid json"))
+            .mount(&mock_server)
+            .await;
+
+        let router = GatekeeperRouter::new(format!("{}/route", mock_server.uri()), 5000, 3);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: None,
+            routing_trace: None,
+        };
+
+        let work_output = json!({});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Should return JSON parse error
+        assert!(decision.is_err());
+        let err = decision.unwrap_err();
+        assert!(err.to_string().contains("Invalid JSON"));
+    }
+
+    #[tokio::test]
+    async fn test_gatekeeper_network_error() {
+        // Use a URL that will fail to connect
+        let router = GatekeeperRouter::new("http://localhost:1".to_string(), 1000, 2);
+
+        let task = TaskEnvelopeV2 {
+            task_id: Uuid::new_v4(),
+            conversation_id: "test-conv".to_string(),
+            topic: "/test".to_string(),
+            instruction: None,
+            input: json!({}),
+            next: None,
+            version: "2.0".to_string(),
+            context: None,
+            routing_trace: None,
+        };
+
+        let work_output = json!({});
+        let registry = AgentRegistry::new();
+
+        let decision = router
+            .decide_next_step(&task, &work_output, &registry)
+            .await;
+
+        // Should return network error
+        assert!(decision.is_err());
+    }
 }
