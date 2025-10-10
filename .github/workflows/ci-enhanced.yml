@@ -37,14 +37,19 @@ jobs:
 
     - name: Start MQTT broker
       run: |
-        # Start mosquitto with config that allows external connections
-        # mosquitto:2 defaults to localhost-only mode, so we start with no config
-        # which defaults to allowing anonymous connections on all interfaces
+        # Create mosquitto config that allows external connections
+        # mosquitto:2 defaults to localhost-only mode, so we need explicit config
+        cat > /tmp/mosquitto.conf <<EOF
+        listener 1883 0.0.0.0
+        allow_anonymous true
+        EOF
+
+        # Start mosquitto with our config
         docker run -d \
           --name mqtt-broker \
           -p 1883:1883 \
-          eclipse-mosquitto:2 \
-          mosquitto -c /dev/null
+          -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
+          eclipse-mosquitto:2
 
         # Wait for broker to be ready
         echo "Waiting for MQTT broker..."
@@ -108,12 +113,19 @@ jobs:
 
     - name: Start MQTT broker
       run: |
-        # Start mosquitto with config that allows external connections
+        # Create mosquitto config that allows external connections
+        # mosquitto:2 defaults to localhost-only mode, so we need explicit config
+        cat > /tmp/mosquitto.conf <<EOF
+        listener 1883 0.0.0.0
+        allow_anonymous true
+        EOF
+
+        # Start mosquitto with our config
         docker run -d \
           --name mqtt-broker \
           -p 1883:1883 \
-          eclipse-mosquitto:2 \
-          mosquitto -c /dev/null
+          -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
+          eclipse-mosquitto:2
 
         # Wait for broker to be ready
         echo "Waiting for MQTT broker..."
