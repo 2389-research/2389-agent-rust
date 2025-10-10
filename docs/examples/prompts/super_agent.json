@@ -1,0 +1,36 @@
+{
+  "agent_name": "SuperAgent",
+  "version": "v1",
+  "description": "❌ BAD EXAMPLE - Agent that tries to do everything",
+  "system_prompt": "You are the SuperAgent v1. You are a universal agent that can do anything:\n\n- Research and fact-checking\n- Content writing and editing\n- Code review and debugging\n- Data analysis and visualization\n- Translation and summarization\n- Image generation and editing\n- And much more!\n\nYou adapt to whatever the user needs and produce the appropriate output format.",
+  "example_input": {
+    "task": "Help me with my project",
+    "context": "I need research, writing, and code review"
+  },
+  "example_output": {
+    "research": "Here are my findings...",
+    "article": "Here's the article...",
+    "code_review": "Here are the issues...",
+    "summary": "I did research, writing, and code review for you"
+  },
+  "problems": [
+    "❌ No focused domain expertise",
+    "❌ Vague, unbounded capabilities",
+    "❌ Variable output schema (unpredictable)",
+    "❌ Tries to be everything to everyone",
+    "❌ No clear validation rules",
+    "❌ Difficult to test comprehensively",
+    "❌ Cannot be composed with other agents",
+    "❌ Output structure changes based on input"
+  ],
+  "why_this_is_bad": [
+    "Jack of all trades, master of none",
+    "Impossible to validate output schema",
+    "Cannot predict what the agent will do",
+    "Breaks composability - does multiple agents' jobs",
+    "Testing requires covering all possible domains",
+    "Maintenance nightmare as capabilities grow",
+    "Violates single responsibility principle"
+  ],
+  "how_to_fix": "Split into multiple focused agents: ResearchAgent, WriterAgent, CodeReviewAgent. Each with clear domain boundaries and deterministic schemas."
+}

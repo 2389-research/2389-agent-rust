@@ -1,0 +1,91 @@
+# ❌ BAD EXAMPLE: Super Agent Configuration
+#
+# This agent violates the single responsibility principle by:
+# - Trying to do everything
+# - No focused domain expertise
+# - Unpredictable output schema
+#
+# DO NOT USE THIS PATTERN!
+
+[agent]
+id = "super-agent-001"  # ❌ BAD
+description = "Universal agent that can do anything"  # ❌ Too vague
+capabilities = [
+    "research",
+    "writing",
+    "editing",
+    "coding",
+    "data-analysis",
+    "translation",
+    "image-generation",
+    "everything"  # ❌ Not a real capability!
+]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.7
+
+# ❌ BAD SYSTEM PROMPT: No focus, tries to be everything
+system_prompt = """
+You are the SuperAgent v1. You are a universal agent that can do anything:
+
+- Research and fact-checking
+- Content writing and editing
+- Code review and debugging
+- Data analysis and visualization
+- Translation and summarization
+- Image generation and editing
+- And much more!
+
+You adapt to whatever the user needs and produce the appropriate output format.
+"""
+# ^^^ PROBLEMS:
+# - No focused domain expertise
+# - Vague, unbounded capabilities
+# - No clear input/output schema
+# - Variable output structure
+# - Jack of all trades, master of none
+
+[budget]
+max_tool_calls = 50  # ❌ Needs excessive budget because it does everything
+max_iterations = 20
+
+[tools]
+http_request = "builtin"
+web_search = "builtin"
+file_read = "builtin"
+file_write = "builtin"
+
+# ❌ BAD: Unpredictable output - changes based on input
+# Sometimes:
+# { "research": "...", "summary": "..." }
+#
+# Other times:
+# { "code_review": "...", "issues": [...] }
+#
+# Or maybe:
+# { "translation": "...", "original": "...", "target_lang": "..." }
+#
+# WHY THIS IS BAD:
+# - Cannot validate output schema
+# - Impossible to predict behavior
+# - Cannot test comprehensively
+# - No clear contract
+# - Maintenance nightmare
+# - Cannot compose with other agents effectively
+#
+# HOW TO FIX:
+# - Split into focused agents:
+#   * ResearchAgent (research only)
+#   * WriterAgent (writing only)
+#   * CodeReviewAgent (code review only)
+# - Each with clear domain and deterministic schema
+# - Each testable in isolation
+# - Each composable in workflows

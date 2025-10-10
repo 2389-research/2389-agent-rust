@@ -1,0 +1,73 @@
+# ❌ BAD EXAMPLE: Routing-Aware Agent Configuration
+#
+# This agent violates the routing-agnostic principle by:
+# - Knowing about other agents
+# - Making routing decisions
+# - Including workflow logic in output
+#
+# DO NOT USE THIS PATTERN!
+
+[agent]
+id = "routing-aware-agent-001"  # ❌ BAD
+description = "Agent that does research AND decides what happens next"
+capabilities = ["research", "workflow-management"]  # ❌ workflow-management shouldn't be a capability
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.7
+
+# ❌ BAD SYSTEM PROMPT: Routing-aware, mentions other agents
+system_prompt = """
+You are the RoutingAwareAgent v1. You perform research and then decide which agent should handle the next step.
+
+You can forward work to:
+- WriterAgent for content creation
+- EditorAgent for content improvement
+- PublisherAgent for publishing
+
+After completing your research, analyze whether the workflow is complete or which agent should process next.
+
+Return JSON with your findings AND routing decision.
+"""
+# ^^^ PROBLEMS:
+# - Mentions specific agents by name
+# - Describes routing logic
+# - Agent is making workflow decisions
+# - Violates separation of concerns
+
+[budget]
+max_tool_calls = 20
+max_iterations = 10
+
+[tools]
+http_request = "builtin"
+web_search = "builtin"
+
+# ❌ BAD: Example output from this agent:
+# {
+#   "findings": ["Finding 1", "Finding 2"],
+#   "next_agent": "writer-agent",           // ❌ Router's job!
+#   "next_instruction": "Write article",    // ❌ Router's job!
+#   "workflow_complete": false,             // ❌ Router's job!
+#   "reasoning": "Research done, need writing"  // ❌ Router's job!
+# }
+#
+# WHY THIS IS BAD:
+# - Agent is doing the router's job
+# - Cannot reuse agent in different workflows
+# - Tightly coupled to specific agent ecosystem
+# - Impossible to test in isolation
+# - Violates V2 routing architecture
+#
+# HOW TO FIX:
+# - Remove all routing fields from output
+# - Remove mentions of other agents from prompt
+# - Let agent focus ONLY on research
+# - Let Router decide what happens next

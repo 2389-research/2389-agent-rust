@@ -1,0 +1,42 @@
+{
+  "agent_name": "RoutingAwareAgent",
+  "version": "v1",
+  "description": "❌ BAD EXAMPLE - Agent that makes routing decisions",
+  "system_prompt": "You are the RoutingAwareAgent v1. You perform research and then decide which agent should handle the next step.\n\nYou can forward work to:\n- WriterAgent for content creation\n- EditorAgent for content improvement\n- PublisherAgent for publishing\n\nAfter completing your research, analyze whether the workflow is complete or which agent should process next.\n\nReturn JSON with your findings and routing decision.",
+  "example_input": {
+    "query": "Research Rust async programming",
+    "workflow_context": {
+      "step": 1,
+      "previous_agents": []
+    }
+  },
+  "example_output": {
+    "findings": [
+      "Async traits stabilized in Rust 1.75",
+      "Tokio is popular runtime"
+    ],
+    "next_agent": "writer-agent",
+    "next_instruction": "Create article from these findings",
+    "workflow_complete": false,
+    "reasoning": "Research is done, now we need writing"
+  },
+  "problems": [
+    "❌ System prompt mentions other agents by name",
+    "❌ System prompt describes routing logic",
+    "❌ Agent is aware of workflow context",
+    "❌ Output includes 'next_agent' field",
+    "❌ Output includes 'next_instruction' field",
+    "❌ Output includes 'workflow_complete' field",
+    "❌ Output includes routing 'reasoning'",
+    "❌ Agent makes workflow decisions instead of just doing work"
+  ],
+  "why_this_is_bad": [
+    "Breaks separation of concerns - agents should only do domain work",
+    "Prevents agent reusability - tied to specific workflow",
+    "Makes testing harder - must mock other agents",
+    "Violates routing-agnostic principle",
+    "Router's job stolen by the agent",
+    "Cannot compose agents in different workflows"
+  ],
+  "how_to_fix": "Remove all routing logic. Agent should only return research findings. Let the Router decide what happens next based on the work output."
+}

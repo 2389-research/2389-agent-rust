@@ -1,0 +1,91 @@
+# ❌ BAD EXAMPLE: Stateful Agent Configuration
+#
+# This agent violates the stateless principle by:
+# - Referencing previous invocations
+# - Maintaining session state
+# - Depending on conversation history
+#
+# DO NOT USE THIS PATTERN!
+
+[agent]
+id = "stateful-agent-001"  # ❌ BAD
+description = "Agent that remembers previous interactions"  # ❌ Breaks statelessness
+capabilities = ["analysis", "learning"]  # ❌ "learning" implies state
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+temperature = 0.7
+
+# ❌ BAD SYSTEM PROMPT: References state and history
+system_prompt = """
+You are the StatefulAgent v1. You remember previous interactions and build on them.
+
+Keep track of:
+- Previous queries and responses
+- User preferences learned over time
+- Conversation history
+- State from previous invocations
+
+Use this context to provide better, more personalized responses.
+
+Maintain continuity across invocations by referencing your accumulated knowledge.
+"""
+# ^^^ PROBLEMS:
+# - References "previous interactions"
+# - Tries to maintain state across calls
+# - Depends on external memory/history
+# - Not self-contained
+# - Violates protocol's stateless design
+
+[budget]
+max_tool_calls = 15
+max_iterations = 8
+
+[tools]
+http_request = "builtin"
+
+# ❌ BAD: Example output references previous state
+# {
+#   "response": "As I mentioned in our previous conversation...",  // ❌ References past
+#   "continuation_from": "task-456",                               // ❌ Links to previous task
+#   "accumulated_findings": [
+#     "Finding from invocation 1",                                 // ❌ Accumulated state
+#     "Finding from invocation 2",
+#     "Finding from invocation 3"
+#   ],
+#   "session_state": {                                             // ❌ Session tracking
+#     "total_queries": 3,
+#     "user_preferences": { "detail_level": "high" }
+#   }
+# }
+#
+# WHY THIS IS BAD:
+# - Breaks agent portability (can't move between workflows)
+# - Makes testing non-deterministic
+# - Requires complex state management infrastructure
+# - Cannot replay or reproduce results
+# - Breaks protocol's stateless design
+# - Impossible to parallelize invocations
+# - State synchronization becomes a nightmare
+# - Cannot cache or memoize results
+#
+# HOW TO FIX:
+# - Make agent completely stateless
+# - Each invocation must be self-contained
+# - If context is needed, Router provides it in the input
+# - Agent should never reference "previous" anything
+# - Output should depend ONLY on current input
+#
+# ✅ CORRECT APPROACH:
+# If workflow needs context, the Router builds it:
+# - Router tracks workflow history
+# - Router provides necessary context in task input
+# - Agent processes self-contained input
+# - Agent returns deterministic output

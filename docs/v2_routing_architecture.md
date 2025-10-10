@@ -39,6 +39,8 @@ Agent:                      Router:
 
 **Responsibility**: Execute domain-specific work
 
+> 📖 **See also:** [Agent System Prompt Guidelines](./agent_system_prompts.md) - Comprehensive guide to writing routing-agnostic agents
+
 **What agents see:**
 - Static system prompt (their role/expertise)
 - Task instruction (what to do)
@@ -672,18 +674,18 @@ After agent completes, router decides next step dynamically.
 
 ## Implementation Checklist
 
-- [ ] Add `iteration_count` to `WorkflowContext`
-- [ ] Create `Router` trait in `src/routing/router.rs`
-- [ ] Implement `LlmRouter` with structured output support
-- [ ] Implement `GatekeeperRouter` with HTTP client
-- [ ] Create routing decision schema with `JsonSchema` derive
-- [ ] Add `format_workflow_history()` helper
-- [ ] Add `format_agent_catalog()` helper
-- [ ] Update `PipelineOrchestrator` with router integration
-- [ ] Add routing configuration to `config.toml`
-- [ ] Update forwarding logic with iteration limit
-- [ ] Add integration tests for router implementations
-- [ ] Document agent system prompt guidelines
+- [x] Add `iteration_count` to `WorkflowContext`
+- [x] Create `Router` trait in `src/routing/router.rs`
+- [x] Implement `LlmRouter` with structured output support
+- [x] Implement `GatekeeperRouter` with HTTP client
+- [x] Create routing decision schema with `JsonSchema` derive
+- [x] Add `format_workflow_history()` helper
+- [x] Add `format_agent_catalog()` helper
+- [x] Update `PipelineOrchestrator` with router integration
+- [x] Add routing configuration to `config.toml`
+- [x] Update forwarding logic with iteration limit
+- [x] Add integration tests for router implementations
+- [x] Document agent system prompt guidelines - **[See agent_system_prompts.md](./agent_system_prompts.md)**
 
 ## Summary
 
