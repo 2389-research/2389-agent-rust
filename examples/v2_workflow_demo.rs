@@ -372,24 +372,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .map_err(|e| format!("Failed to create transport for {agent_id}: {e}"))?;
 
-        // Connect to MQTT broker
+        // Create task channel for this agent BEFORE connecting/subscribing
+        // This prevents race condition where messages arrive before sender is set
+        let (task_tx, task_rx) = mpsc::channel(100);
+
+        // Wire up transport to forward received messages to the channel
+        // MUST be done before connect/subscribe to avoid dropping early messages
+        transport.set_task_sender(task_tx).await;
+
+        // Now connect to MQTT broker
         transport
             .connect()
             .await
             .map_err(|e| format!("Failed to connect {agent_id} to MQTT: {e}"))?;
 
-        // Subscribe to input topic
+        // Subscribe to input topic (messages will now flow to task_rx)
         transport
             .subscribe_to_tasks()
             .await
             .map_err(|e| format!("Failed to subscribe {agent_id} to tasks: {e}"))?;
-
-        // Create task channel for this agent
-        let (task_tx, task_rx) = mpsc::channel(100);
-
-        // Wire up transport to forward received messages to the channel
-        // Note: set_task_sender is async on MqttClient
-        transport.set_task_sender(task_tx).await;
 
         // Now wrap in Arc for sharing
         let transport = Arc::new(transport);
@@ -540,8 +541,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         iteration_count = current_iteration;
                                     }
 
-                                    // Workflow complete when there's no next agent and we've had iterations
-                                    if envelope.next.is_none() && iteration_count >= 3 {
+                                    // Workflow complete when there's no next agent and we've had at least one iteration
+                                    // This allows both linear workflows (Research→Write→Edit) and iterative ones
+                                    if envelope.next.is_none() && iteration_count > 0 {
                                         let msg_count = {
                                             let msgs = workflow_messages_clone.lock().await;
                                             msgs.len()
@@ -561,10 +563,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             } else {
                                 // Also check if this is a simple response message indicating completion
-                                // by looking for the last judge-agent message with iteration_count = 3
+                                // by looking for the last judge-agent message after at least one iteration
                                 if parts.len() >= 4
                                     && parts[3] == "judge-agent"
-                                    && iteration_count >= 3
+                                    && iteration_count > 0
                                 {
                                     // Give it a moment to see if more messages arrive
                                     tokio::time::sleep(Duration::from_millis(100)).await;

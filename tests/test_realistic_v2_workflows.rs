@@ -274,6 +274,15 @@ impl RealisticWorkflowTest {
 
 // ========== ACTUAL TESTS ==========
 
+// TODO(Phase 3): Implement full workflow orchestration
+// These tests currently have placeholder run_workflow() that just returns Ok(())
+// Need to implement:
+// 1. Starting all agent processors in the scenario
+// 2. Publishing initial task to MQTT
+// 3. Monitoring conversation messages for workflow completion
+// 4. Collecting results and validating workflow behavior
+// 5. Proper cleanup of agent processors
+
 #[tokio::test]
 async fn test_realistic_research_write_edit_workflow() {
     // This test demonstrates a linear workflow:

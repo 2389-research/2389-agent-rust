@@ -54,12 +54,5 @@ max_iterations = 8
 [tools]
 # Writers typically don't need external tools
 
-# V2 Routing Configuration
-[routing]
-strategy = "llm"
-max_iterations = 10
-
-[routing.llm]
-provider = "openai"
-model = "gpt-4o-mini"
-temperature = 0.1
+# Note: This agent does NOT handle routing
+# Routing decisions should be made by a dedicated router or orchestrator

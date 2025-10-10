@@ -34,7 +34,7 @@ This document summarizes the complete V2 routing implementation for the 2389 Age
 
 ### Workflow Flow
 
-```
+```text
 ┌─────────────┐
 │ Agent A     │
 │ receives    │
@@ -190,7 +190,7 @@ cargo run --example v2_workflow_demo -- --workflow iterative --real-llm
 
 ### Example Output
 
-```
+```console
 🚀 Starting V2 Routing Workflow Demo
 📍 Workflow: Iterative Write → Judge → Refine
 💬 MQTT Broker: mqtt://localhost:1883
@@ -318,7 +318,7 @@ The V2 routing implementation was delivered through the following PRs:
 
 All routing decisions are logged with structured fields:
 
-```
+```text
 INFO Parsed routing decision from LLM
      workflow_complete=false
      reasoning="Routing to judge-agent for further processing"
