@@ -1,6 +1,6 @@
 //! Integration Tests for Multi-Agent Discovery
 //!
-//! Tests agent discovery via /control/agents/+/status:
+//! Tests agent discovery via /control/agents/+/status with localhost:1883:
 //! - Agents subscribe to wildcard status topic
 //! - Agents publish their own status
 //! - Agents discover each other via retained status messages
@@ -11,18 +11,15 @@ mod mqtt_integration_helpers;
 use agent2389::protocol::{AgentStatus, AgentStatusType};
 use agent2389::transport::mqtt::MqttClient;
 use agent2389::transport::Transport;
-use mqtt_integration_helpers::MqttTestHarness;
+use mqtt_integration_helpers::mqtt_config;
 use std::time::Duration;
-use testcontainers::clients::Cli;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_two_agents_discover_each_other() {
-    // Arrange: Start broker and create two agents
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config1 = harness.mqtt_config();
-    let config2 = harness.mqtt_config();
+    // Arrange: Connect two agents to localhost:1883
+    let config1 = mqtt_config();
+    let config2 = mqtt_config();
 
     let mut agent1 = MqttClient::new("discovery-agent-1", config1)
         .await
@@ -84,9 +81,7 @@ async fn test_two_agents_discover_each_other() {
 async fn test_agent_subscribes_to_discovery_topic() {
     // Verify agents can subscribe to /control/agents/+/status wildcard
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut agent = MqttClient::new("discovery-sub-agent", config)
         .await
@@ -109,9 +104,7 @@ async fn test_agent_subscribes_to_discovery_topic() {
 async fn test_agent_publishes_available_status_on_startup() {
     // Test RFC requirement: agent publishes Available status on startup
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut agent = MqttClient::new("startup-status-agent", config)
         .await
@@ -143,9 +136,7 @@ async fn test_agent_publishes_available_status_on_startup() {
 async fn test_agent_publishes_unavailable_on_shutdown() {
     // Test RFC requirement: agent publishes Unavailable status on shutdown
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut agent = MqttClient::new("shutdown-status-agent", config)
         .await
@@ -191,10 +182,8 @@ async fn test_agent_publishes_unavailable_on_shutdown() {
 async fn test_retained_status_available_to_new_agent() {
     // Test that retained status messages are available to newly connecting agents
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config1 = harness.mqtt_config();
-    let config2 = harness.mqtt_config();
+    let config1 = mqtt_config();
+    let config2 = mqtt_config();
 
     // Agent 1 publishes status
     let mut agent1 = MqttClient::new("retained-agent-1", config1)

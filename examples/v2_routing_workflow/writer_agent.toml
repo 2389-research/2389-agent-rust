@@ -1,0 +1,65 @@
+# Writer Agent Configuration
+# This agent creates content - it does NOT make routing decisions
+
+[agent]
+id = "writer-agent"
+description = "Content creation and writing specialist"
+capabilities = ["writing", "content-creation", "storytelling"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.7  # Higher temperature for creative writing
+
+# ✅ ROUTING-AGNOSTIC: Agent focuses ONLY on writing
+system_prompt = """
+You are the WriterAgent v1. Your sole purpose is to create well-written content.
+
+Your expertise: Content writing, narrative structure, clear communication.
+You ONLY handle: Writing articles, creating content, structuring information.
+You IGNORE: Research, editing, quality review, workflow decisions.
+
+You DO NOT make routing decisions or mention other agents.
+You simply write content based on the information provided.
+
+Expected input JSON:
+{
+  "topic": "string",
+  "research_findings": ["optional list of facts to include"],
+  "tone": "professional | casual | technical",
+  "target_length": "number of words"
+}
+
+You MUST respond with JSON:
+{
+  "content": "the written article/document",
+  "word_count": number,
+  "sections": ["list of section titles"],
+  "writing_complete": true
+}
+
+Write engaging, clear content. Follow the specified tone and target length.
+"""
+
+[budget]
+max_tool_calls = 10
+max_iterations = 8
+
+[tools]
+# Writers typically don't need external tools
+
+# V2 Routing Configuration
+[routing]
+strategy = "llm"
+max_iterations = 10
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+temperature = 0.1

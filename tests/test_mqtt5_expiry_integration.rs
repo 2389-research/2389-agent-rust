@@ -1,6 +1,6 @@
 //! Integration Tests for MQTT v5 Message Expiry
 //!
-//! Tests MQTT v5 message expiry interval feature:
+//! Tests MQTT v5 message expiry interval feature with localhost:1883:
 //! - Available status published with 3600s expiry and retain=true
 //! - Unavailable status published with retain=true, no expiry
 //! - Status messages actually expire from broker after interval
@@ -11,17 +11,14 @@ mod mqtt_integration_helpers;
 use agent2389::protocol::{AgentStatus, AgentStatusType};
 use agent2389::transport::mqtt::MqttClient;
 use agent2389::transport::Transport;
-use mqtt_integration_helpers::MqttTestHarness;
+use mqtt_integration_helpers::mqtt_config;
 use std::time::Duration;
-use testcontainers::clients::Cli;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_available_status_published_with_retain() {
-    // Arrange: Start broker and connect client
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Connect client to localhost:1883
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("expiry-test-agent", config)
         .await
@@ -55,10 +52,8 @@ async fn test_available_status_published_with_retain() {
 
 #[tokio::test]
 async fn test_unavailable_status_published_retained() {
-    // Arrange: Start broker and connect client
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Connect client to localhost:1883
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("unavailable-test-agent", config)
         .await
@@ -91,9 +86,7 @@ async fn test_unavailable_status_published_retained() {
 async fn test_status_message_properties() {
     // Verify that status messages are published with correct MQTT v5 properties
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("properties-test-agent", config)
         .await
@@ -126,9 +119,7 @@ async fn test_status_actually_expires_after_interval() {
     // This test would require waiting 3600 seconds to verify expiry
     // Marked as ignored for CI, but validates the concept
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("long-expiry-agent", config)
         .await
@@ -161,9 +152,7 @@ async fn test_status_actually_expires_after_interval() {
 async fn test_multiple_status_updates() {
     // Test publishing multiple status updates (simulating heartbeat)
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("heartbeat-test-agent", config)
         .await

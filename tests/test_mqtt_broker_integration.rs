@@ -1,8 +1,8 @@
 //! Integration Tests with Real MQTT Broker
 //!
-//! Tests MQTT client functionality with a real Mosquitto broker using testcontainers.
+//! Tests MQTT client functionality with real MQTT broker at localhost:1883.
 //! These tests validate:
-//! - Connection to real broker
+//! - Connection to broker
 //! - Message publishing and subscription
 //! - QoS 1 delivery guarantees
 //! - MQTT v5 protocol features
@@ -12,17 +12,14 @@ mod mqtt_integration_helpers;
 use agent2389::protocol::{AgentStatus, AgentStatusType};
 use agent2389::transport::mqtt::MqttClient;
 use agent2389::transport::Transport;
-use mqtt_integration_helpers::MqttTestHarness;
+use mqtt_integration_helpers::mqtt_config;
 use std::time::Duration;
-use testcontainers::clients::Cli;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_connect_to_real_broker() {
-    // Arrange: Start real Mosquitto broker
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Use localhost MQTT broker
+    let config = mqtt_config();
 
     // Act: Create and connect MQTT client
     let mut client = MqttClient::new("test-agent", config)
@@ -32,7 +29,7 @@ async fn test_connect_to_real_broker() {
     let result = client.connect().await;
 
     // Assert: Connection succeeds
-    assert!(result.is_ok(), "Should connect to real broker");
+    assert!(result.is_ok(), "Should connect to broker at localhost:1883");
     assert!(client.is_connected(), "Client should report connected");
 
     // Cleanup
@@ -41,10 +38,8 @@ async fn test_connect_to_real_broker() {
 
 #[tokio::test]
 async fn test_publish_status_to_real_broker() {
-    // Arrange: Start broker and connect client
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Connect to localhost broker
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("test-agent-pub", config)
         .await
@@ -81,10 +76,8 @@ async fn test_publish_status_to_real_broker() {
 
 #[tokio::test]
 async fn test_subscribe_to_tasks() {
-    // Arrange: Start broker and connect client
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Connect to localhost broker
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("subscribe-test-agent", config)
         .await
@@ -105,10 +98,8 @@ async fn test_subscribe_to_tasks() {
 
 #[tokio::test]
 async fn test_disconnect_from_real_broker() {
-    // Arrange: Start broker and connect client
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
-    let config = harness.mqtt_config();
+    // Arrange: Connect to localhost broker
+    let config = mqtt_config();
 
     let mut client = MqttClient::new("disconnect-test-agent", config)
         .await

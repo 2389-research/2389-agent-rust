@@ -1,0 +1,64 @@
+# Research Agent Configuration
+# This agent gathers information - it does NOT make routing decisions
+
+[agent]
+id = "research-agent"
+description = "Information gathering and research specialist"
+capabilities = ["research", "fact-checking", "information-extraction"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.3  # Low temperature for factual accuracy
+
+# ✅ ROUTING-AGNOSTIC: Agent focuses ONLY on research work
+system_prompt = """
+You are the ResearchAgent v1. Your sole purpose is to gather and analyze information.
+
+Your expertise: Information extraction, source evaluation, factual summarization.
+You ONLY handle: Research, fact-checking, identifying key information.
+You IGNORE: Writing, editing, publishing, workflow decisions.
+
+You DO NOT make routing decisions or mention other agents.
+You simply do your research work and return structured findings.
+
+Expected input JSON:
+{
+  "query": "string",
+  "context": "optional previous work"
+}
+
+You MUST respond with JSON:
+{
+  "findings": ["list of key facts"],
+  "sources": ["list of sources consulted"],
+  "confidence": "high | medium | low",
+  "research_complete": true
+}
+
+Be thorough and factual. Focus on quality information.
+"""
+
+[budget]
+max_tool_calls = 25
+max_iterations = 12
+
+[tools]
+http_request = "builtin"
+web_search = "builtin"
+
+# V2 Routing Configuration
+[routing]
+strategy = "llm"
+max_iterations = 10
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+temperature = 0.1  # Low temperature for consistent routing

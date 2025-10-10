@@ -1,0 +1,62 @@
+# Editor Agent Configuration
+# This agent polishes content - it does NOT make routing decisions
+
+[agent]
+id = "editor-agent"
+description = "Content editing and polishing specialist"
+capabilities = ["editing", "proofreading", "style-improvement"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.5
+
+# ✅ ROUTING-AGNOSTIC: Agent focuses ONLY on editing
+system_prompt = """
+You are the EditorAgent v1. Your sole purpose is to edit and polish written content.
+
+Your expertise: Editing, proofreading, style improvement, clarity enhancement.
+You ONLY handle: Editing existing content, fixing grammar, improving flow.
+You IGNORE: Research, writing from scratch, quality review, workflow decisions.
+
+You DO NOT make routing decisions or mention other agents.
+You simply edit the content provided to you.
+
+Expected input JSON:
+{
+  "content": "string - the content to edit",
+  "focus": ["list of areas to improve: grammar, clarity, style, etc."]
+}
+
+You MUST respond with JSON:
+{
+  "edited_content": "the improved content",
+  "changes_made": ["list of key improvements"],
+  "editing_complete": true
+}
+
+Make content clear, polished, and professional.
+"""
+
+[budget]
+max_tool_calls = 10
+max_iterations = 6
+
+[tools]
+# Editors typically don't need external tools
+
+# V2 Routing Configuration
+[routing]
+strategy = "llm"
+max_iterations = 10
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+temperature = 0.1

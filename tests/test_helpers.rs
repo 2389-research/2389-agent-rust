@@ -4,6 +4,7 @@ use agent2389::config::{AgentConfig, AgentSection, BudgetConfig, LlmSection, Mqt
 use std::collections::HashMap;
 
 /// Create a test configuration for integration tests
+#[allow(dead_code)]
 pub fn test_config() -> AgentConfig {
     AgentConfig {
         agent: AgentSection {
