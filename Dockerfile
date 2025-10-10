@@ -1,5 +1,6 @@
 # Multi-stage build for 2389 Agent Protocol
-FROM rust:1.80-slim-bookworm AS builder
+# Using Rust 1.83 for edition2024 support (required by libxml dependency)
+FROM rust:1.83-slim-bookworm AS builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -45,7 +46,6 @@ RUN useradd -m -u 1001 agent && \
 
 # Copy binary from builder stage
 COPY --from=builder /app/target/release/agent2389 /usr/local/bin/agent2389
-COPY --chown=agent:agent agent.toml.example /app/config/agent.toml.example
 
 # Switch to non-root user
 USER agent
