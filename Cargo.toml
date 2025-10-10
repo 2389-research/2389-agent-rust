@@ -58,4 +58,3 @@ tempfile = "3.0"
 wiremock = "0.6"
 futures = "0.3"
 # criterion = "0.5"       # Add for benchmarking
-# Note: testcontainers removed - MQTT broker always running at localhost:1883

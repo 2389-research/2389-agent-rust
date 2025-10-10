@@ -169,7 +169,7 @@ Routers can query AgentRegistry to discover available agents and their capabilit
 
 ### Prerequisites
 
-- MQTT broker running at `localhost:1883` (always available, no testcontainers)
+- MQTT broker running at `localhost:1883`
 - Agent TOML configs in `examples/v2_routing_workflow/`
 
 ### Run Example Workflows

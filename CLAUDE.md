@@ -108,7 +108,7 @@ The specification defines an 8-week implementation plan with specific phases:
 ### Test-Driven Development
 - Write failing tests first for each feature
 - Use property-based testing with `proptest` crate for edge cases
-- Integration tests with real MQTT broker using `testcontainers`
+- Integration tests with real MQTT broker (localhost:1883 in dev, Mosquitto container in CI)
 - All protocol requirements tagged `[req: X]` must have corresponding tests
 
 ## Code Quality Standards
@@ -247,7 +247,6 @@ reqwest = { version = "0.11", features = ["json"] }
 
 # Development dependencies
 proptest = "1.0"
-testcontainers = "0.15" 
 tokio-test = "0.4"
 wiremock = "0.5"
 ```

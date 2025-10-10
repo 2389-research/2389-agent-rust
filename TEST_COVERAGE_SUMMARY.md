@@ -196,7 +196,7 @@
 - **MockTransport**: Full mock MQTT client for testing
 - **MockLlmProvider**: Configurable LLM mock with responses
 - **MockToolSystem**: Tool execution mock with result injection
-- **testcontainers**: Available for integration with real services
 - **wiremock**: Available for HTTP API mocking
 - **proptest**: Available for property-based testing
+- **Real MQTT broker**: localhost:1883 in dev, Mosquitto container in CI
 - **tokio-test**: Available for async test utilities
