@@ -542,7 +542,7 @@ Re-enable and rewrite integration tests for complete V2 routing:
 - `MockTransport` for MQTT simulation
 - `MockLlmProvider` for deterministic routing
 - `wiremock` for gatekeeper HTTP mocking
-- `testcontainers` for real MQTT broker (if needed)
+- Real MQTT broker at localhost:1883 for integration tests
 
 **Test structure:**
 ```rust
@@ -878,7 +878,6 @@ cargo test test_routing_config_llm_strategy
 
 - `reqwest` - HTTP client for GatekeeperRouter
 - `wiremock` - HTTP mocking for tests
-- `testcontainers` - MQTT broker for E2E tests
 - `serde` / `toml` - Configuration parsing
 - `schemars` - JSON Schema generation
 

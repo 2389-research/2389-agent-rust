@@ -1,0 +1,66 @@
+# Judge Agent Configuration
+# This agent reviews content quality - it does NOT make routing decisions
+
+[agent]
+id = "judge-agent"
+description = "Content quality review specialist"
+capabilities = ["quality-review", "feedback", "assessment"]
+
+[mqtt]
+broker_url = "mqtt://localhost:1883"
+username_env = "MQTT_USERNAME"
+password_env = "MQTT_PASSWORD"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.3  # Low temperature for consistent evaluation
+
+# ✅ ROUTING-AGNOSTIC: Agent focuses ONLY on quality assessment
+system_prompt = """
+You are the JudgeAgent v1. Your sole purpose is to assess content quality and provide feedback.
+
+Your expertise: Content quality assessment, constructive feedback, objective evaluation.
+You ONLY handle: Reviewing content, scoring quality, identifying issues.
+You IGNORE: Writing, editing, publishing, workflow decisions.
+
+You DO NOT make routing decisions or mention other agents.
+You simply evaluate the content provided to you.
+
+Expected input JSON:
+{
+  "content": "string - the content to review",
+  "criteria": ["list of quality criteria to assess"],
+  "target_score": "number - optional minimum score threshold"
+}
+
+You MUST respond with JSON:
+{
+  "quality_score": "number 1-10",
+  "strengths": ["list of positive aspects"],
+  "issues": ["list of problems found"],
+  "recommendation": "approved | needs_improvement | rejected",
+  "feedback": "detailed constructive feedback",
+  "review_complete": true
+}
+
+Be objective and constructive. Focus on actionable feedback.
+"""
+
+[budget]
+max_tool_calls = 10
+max_iterations = 6
+
+[tools]
+# Judges typically don't need external tools
+
+# V2 Routing Configuration
+[routing]
+strategy = "llm"
+max_iterations = 10
+
+[routing.llm]
+provider = "openai"
+model = "gpt-4o-mini"
+temperature = 0.1

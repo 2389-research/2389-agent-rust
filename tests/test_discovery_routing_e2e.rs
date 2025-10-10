@@ -1,6 +1,6 @@
 //! END-TO-END Discovery + Routing Integration Tests
 //!
-//! Tests the CORE v2.0 feature - dynamic agent discovery and routing:
+//! Tests the CORE v2.0 feature - dynamic agent discovery and routing with localhost:1883:
 //! - Agent A publishes capabilities to /control/agents/A/status
 //! - Agent B subscribes to /control/agents/+/status and builds registry
 //! - Agent B queries registry: "who can handle capability X?"
@@ -14,27 +14,25 @@ use agent2389::protocol::{AgentStatus, AgentStatusType, TaskEnvelope};
 use agent2389::routing::agent_selector::{AgentSelectionDecision, RoutingHelper};
 use agent2389::transport::mqtt::MqttClient;
 use agent2389::transport::Transport;
-use mqtt_integration_helpers::MqttTestHarness;
+use mqtt_integration_helpers::mqtt_config;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
-use testcontainers::clients::Cli;
 use tokio::time::sleep;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn test_full_discovery_and_routing_flow() {
-    // Arrange: Start broker and create two agents
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
+    // Arrange: Connect two agents to localhost:1883
+    let config = mqtt_config();
 
     // Agent A: email processor
-    let mut agent_a = MqttClient::new("email-agent", harness.mqtt_config())
+    let mut agent_a = MqttClient::new("email-agent", config.clone())
         .await
         .expect("Agent A creation should succeed");
 
     // Agent B: orchestrator
-    let mut agent_b = MqttClient::new("orchestrator-agent", harness.mqtt_config())
+    let mut agent_b = MqttClient::new("orchestrator-agent", config)
         .await
         .expect("Agent B creation should succeed");
 
@@ -122,10 +120,9 @@ async fn test_full_discovery_and_routing_flow() {
 async fn test_multiple_agents_capability_matching() {
     // Test that registry correctly finds agents by capability
 
-    let docker = Cli::default();
-    let harness = MqttTestHarness::new(&docker).await;
+    let config = mqtt_config();
 
-    let mut orchestrator = MqttClient::new("orchestrator", harness.mqtt_config())
+    let mut orchestrator = MqttClient::new("orchestrator", config)
         .await
         .expect("Orchestrator creation should succeed");
 

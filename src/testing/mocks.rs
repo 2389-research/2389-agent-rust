@@ -348,6 +348,8 @@ impl MockToolSystem {
 pub struct AgentDecision {
     /// Whether the workflow is complete
     pub workflow_complete: bool,
+    /// Reasoning for the routing decision
+    pub reasoning: String,
     /// Next agent ID to route to (None if workflow complete)
     pub next_agent: Option<String>,
     /// Instruction for the next agent
@@ -361,6 +363,7 @@ impl AgentDecision {
     pub fn complete(result: Value) -> Self {
         Self {
             workflow_complete: true,
+            reasoning: "Workflow completed successfully".to_string(),
             next_agent: None,
             next_instruction: None,
             result,
@@ -373,10 +376,13 @@ impl AgentDecision {
         instruction: impl Into<String>,
         result: Value,
     ) -> Self {
+        let agent_id_str = agent_id.into();
+        let instruction_str = instruction.into();
         Self {
             workflow_complete: false,
-            next_agent: Some(agent_id.into()),
-            next_instruction: Some(instruction.into()),
+            reasoning: format!("Routing to {agent_id_str} for further processing"),
+            next_agent: Some(agent_id_str),
+            next_instruction: Some(instruction_str),
             result,
         }
     }
@@ -385,6 +391,7 @@ impl AgentDecision {
     pub fn to_json(&self) -> Value {
         json!({
             "workflow_complete": self.workflow_complete,
+            "reasoning": self.reasoning,
             "next_agent": self.next_agent,
             "next_instruction": self.next_instruction,
             "result": self.result,
@@ -569,12 +576,14 @@ mod tests {
         let decision = AgentDecision::complete(json!({"status": "done"}));
 
         assert!(decision.workflow_complete);
+        assert_eq!(decision.reasoning, "Workflow completed successfully");
         assert!(decision.next_agent.is_none());
         assert!(decision.next_instruction.is_none());
         assert_eq!(decision.result, json!({"status": "done"}));
 
         let json_output = decision.to_json();
         assert_eq!(json_output["workflow_complete"], true);
+        assert!(json_output["reasoning"].is_string());
     }
 
     #[test]
@@ -583,6 +592,10 @@ mod tests {
             AgentDecision::route_to("processor", "Process the data", json!({"data": "analyzed"}));
 
         assert!(!decision.workflow_complete);
+        assert_eq!(
+            decision.reasoning,
+            "Routing to processor for further processing"
+        );
         assert_eq!(decision.next_agent, Some("processor".to_string()));
         assert_eq!(
             decision.next_instruction,
@@ -593,6 +606,7 @@ mod tests {
         let json_output = decision.to_json();
         assert_eq!(json_output["workflow_complete"], false);
         assert_eq!(json_output["next_agent"], "processor");
+        assert!(json_output["reasoning"].is_string());
     }
 
     #[test]

@@ -498,7 +498,7 @@ The project uses comprehensive testing strategies:
 
 - **Unit Tests** - Test individual components and functions
 - **Property-Based Tests** - Use `proptest` for edge case discovery
-- **Integration Tests** - Test with real MQTT broker using `testcontainers`
+- **Integration Tests** - Test with real MQTT broker (localhost:1883 in dev, Mosquitto container in CI)
 - **Protocol Compliance Tests** - Verify adherence to specification requirements
 
 ```bash

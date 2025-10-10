@@ -1293,7 +1293,6 @@ Rust is uniquely suited for TDD because:
 # Cargo.toml - Development dependencies
 [dev-dependencies]
 proptest = "1.0"           # Property-based testing
-testcontainers = "0.15"    # Real MQTT broker for integration tests
 tokio-test = "0.4"         # Testing utilities for async code
 criterion = "0.5"          # Benchmarking (like pytest-benchmark)
 wiremock = "0.5"          # HTTP mocking for tool tests
@@ -1606,7 +1605,6 @@ proptest! {
 
 ```rust
 use agent2389::*;
-use testcontainers::*;
 use serde_json::json;
 
 /// Complete integration test using real MQTT broker
@@ -1750,7 +1748,7 @@ This is a Rust implementation of the 2389 Agent Protocol, a standard for creatin
 
 ## Testing Strategy
 - Unit tests for all modules
-- Integration tests with real MQTT broker (testcontainers)
+- Integration tests with real MQTT broker (localhost:1883 in dev, Mosquitto container in CI)
 - Property-based tests for protocol compliance
 - Error injection tests for robustness
 
@@ -1885,7 +1883,7 @@ Licensed under either of Apache License, Version 2.0 or MIT license at your opti
 
 ### Week 2: MQTT Transport with Integration Tests ✅
 
-- [ ] **Start MQTT broker in testcontainers** for integration tests
+- [ ] **Start MQTT broker** (localhost:1883) for integration tests
 - [ ] **Write failing integration test** for MQTT connectivity
 - [ ] **Implement MqttClient wrapper** with proper QoS handling
 - [ ] **Add Last Will Testament** configuration and testing

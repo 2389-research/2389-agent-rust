@@ -18,6 +18,27 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    - name: Start MQTT broker
+      run: |
+        # Create mosquitto config that allows external connections
+        # mosquitto:2 defaults to localhost-only mode, so we need explicit config
+        cat > /tmp/mosquitto.conf <<EOF
+        listener 1883 0.0.0.0
+        allow_anonymous true
+        EOF
+
+        # Start mosquitto with our config
+        docker run -d \
+          --name mqtt-broker \
+          -p 1883:1883 \
+          -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
+          eclipse-mosquitto:2
+
+        # Wait for broker to be ready
+        echo "Waiting for MQTT broker..."
+        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
+        echo "✅ MQTT broker is ready on localhost:1883"
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
