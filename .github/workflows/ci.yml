@@ -15,20 +15,22 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
 
-    # MQTT broker service for integration tests
-    services:
-      mqtt:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - uses: actions/checkout@v5
+
+    - name: Start MQTT broker
+      run: |
+        # Start mosquitto with config that allows external connections
+        docker run -d \
+          --name mqtt-broker \
+          -p 1883:1883 \
+          eclipse-mosquitto:2 \
+          mosquitto -c /dev/null
+
+        # Wait for broker to be ready
+        echo "Waiting for MQTT broker..."
+        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
+        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -50,12 +52,6 @@ jobs:
       with:
         path: target
         key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Verify MQTT broker is ready
-      run: |
-        echo "Waiting for MQTT broker to be ready..."
-        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
-        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Run tests
       run: cargo test --all-features --verbose -- --skip test_article_extraction

@@ -31,21 +31,25 @@ jobs:
         # os: [ubuntu-latest, macos-latest, windows-latest]
         # rust: [stable, beta]
 
-    # MQTT broker service for integration tests
-    services:
-      mqtt:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
+
+    - name: Start MQTT broker
+      run: |
+        # Start mosquitto with config that allows external connections
+        # mosquitto:2 defaults to localhost-only mode, so we start with no config
+        # which defaults to allowing anonymous connections on all interfaces
+        docker run -d \
+          --name mqtt-broker \
+          -p 1883:1883 \
+          eclipse-mosquitto:2 \
+          mosquitto -c /dev/null
+
+        # Wait for broker to be ready
+        echo "Waiting for MQTT broker..."
+        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
+        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -71,12 +75,6 @@ jobs:
 
     - name: Build all targets
       run: cargo build --all-targets --all-features
-
-    - name: Verify MQTT broker is ready
-      run: |
-        echo "Waiting for MQTT broker to be ready..."
-        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
-        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Run tests with nextest
       run: |
@@ -104,21 +102,23 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
 
-    # MQTT broker service for integration tests
-    services:
-      mqtt:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-        options: >-
-          --health-cmd "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
+
+    - name: Start MQTT broker
+      run: |
+        # Start mosquitto with config that allows external connections
+        docker run -d \
+          --name mqtt-broker \
+          -p 1883:1883 \
+          eclipse-mosquitto:2 \
+          mosquitto -c /dev/null
+
+        # Wait for broker to be ready
+        echo "Waiting for MQTT broker..."
+        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
+        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Setup Rust toolchain (nightly for coverage)
       uses: dtolnay/rust-toolchain@nightly
@@ -143,12 +143,6 @@ jobs:
       uses: taiki-e/install-action@v2
       with:
         tool: cargo-llvm-cov,nextest
-
-    - name: Verify MQTT broker is ready
-      run: |
-        echo "Waiting for MQTT broker to be ready..."
-        timeout 30 bash -c 'until nc -z localhost 1883; do sleep 1; done'
-        echo "✅ MQTT broker is ready on localhost:1883"
 
     - name: Generate coverage data
       run: |
