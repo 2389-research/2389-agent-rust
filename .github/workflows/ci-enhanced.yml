@@ -33,7 +33,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Start MQTT broker
       run: |
@@ -109,7 +109,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Start MQTT broker
       run: |
@@ -172,7 +172,7 @@ jobs:
         cargo llvm-cov report --summary-only | tee -a "$GITHUB_STEP_SUMMARY"
 
     - name: Upload coverage to artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage-report
         path: lcov.info
@@ -190,7 +190,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -238,7 +238,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -257,7 +257,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -295,7 +295,7 @@ jobs:
 
     - name: Upload audit results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: security-audit
         path: audit-results.json
@@ -307,7 +307,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
