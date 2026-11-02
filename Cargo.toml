@@ -45,7 +45,7 @@ jsonschema = "0.25"
 schemars = "1.0"
 async-trait = "0.1"
 regex = "1.10"
-article_scraper = "2"
+article_scraper = "3"
 # Phase 4 dependencies - CLI and production features
 clap = { version = "4.0", features = ["derive", "env"] }
 url = "2.5"
